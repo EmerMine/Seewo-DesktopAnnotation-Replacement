@@ -4,8 +4,10 @@
 
 ## 使用方法
 
-1. 从 [releases](https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement/releases) 页面下载最新发行版。
+1. 从 [releases](https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement/releases) 页面下载最新发行版，并解压到一个合适的地方。
 
-2. 解压到一个合适的地方。
+2. 前往 `ICC-CE 设置 > 通用 > 基本` 开启 `启用外部协议 (icc://)` 设置项。
 
-3. 运行 `Annotation.exe`。
+3. 运行 `Annotation.exe`，单击 `安装` 按钮。
+
+注意：在安装后，请前往开始菜单通过 `ICC-CE 批注替换设置` 快捷方式打开本程序的设置窗口。
