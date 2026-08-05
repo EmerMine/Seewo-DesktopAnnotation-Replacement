@@ -22,14 +22,19 @@ def get_base_dir():
     else:
         return os.path.dirname(os.path.abspath(__file__))
 
+def get_data_dir():
+    cwd = os.getcwd()
+    internal = os.path.join(cwd, "_internal")
+    return internal if os.path.isdir(internal) else cwd
+
 def get_config_path():
-    return os.path.join(get_base_dir(), "config.json")
+    return os.path.join(get_data_dir(), "config.json")
 
 def get_icon_path():
-    return os.path.join(get_base_dir(), "icon.ico")
+    return os.path.join(get_data_dir(), "icon.ico")
 
 def get_shield_icon_path():
-    return os.path.join(get_base_dir(), "admin.ico")
+    return os.path.join(get_data_dir(), "admin.ico")
 
 DEFAULT_SETTINGS = {
     "show_loading_window": True,
@@ -470,7 +475,7 @@ def main():
             "<h3>欢迎</h3>"
             "<p>欢迎使用「希沃批注替换」！</p>"
             "<p>使用本程序前，请先确保您的计算机上安装了「InkCanvasForClass Community Edition」，且版本大于 1.7.18.7。"
-            "您可以单击下方按钮前往官网或 Github 上下载。</p>"
+            f"您可以单击下方按钮前往官网或 Github 上下载。</p>"
         )
         btn_website = QPushButton("前往官网")
         btn_github = QPushButton("前往 Github")
