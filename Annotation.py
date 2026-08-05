@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
     QSpacerItem, QSizePolicy, QGroupBox, QStyle,
 )
 
+VERSION = "2.0.1"
+
 def get_base_dir():
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
@@ -74,7 +76,7 @@ def is_installed():
         expected = os.path.join(get_base_dir(), "Annotation.exe")
         if debugger.strip('"') != expected:
             return False
-        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\ICC-CE 批注替换设置.lnk"
+        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
         return os.path.exists(lnk_path)
     except Exception:
         return False
@@ -103,10 +105,10 @@ def check_security_software_running():
 def create_and_run_bat(is_install):
     target_exe = os.path.join(get_base_dir(), "Annotation.exe")
     if is_install and not os.path.exists(target_exe):
-        QMessageBox.critical(None, "错误", f"未找到 {target_exe}")
+        QMessageBox.critical(None, "希沃批注替换", f"未找到 {target_exe}")
         return
 
-    lnk_path_str = r"%ProgramData%\Microsoft\Windows\Start Menu\Programs\ICC-CE 批注替换设置.lnk"
+    lnk_path_str = r"%ProgramData%\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
     reg_key = r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DesktopAnnotation.exe"
 
     if is_install:
@@ -131,12 +133,12 @@ del "%~f0"
             None, "runas", bat_path, "", None, 0
         )
     except Exception as e:
-        QMessageBox.critical(None, "错误", f"执行失败：{e}")
+        QMessageBox.critical(None, "希沃批注替换", f"执行失败：{e}")
 
 class LoadingWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ICC-CE 批注替换")
+        self.setWindowTitle("希沃批注替换")
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint) # type: ignore
         self.setWindowIcon(QIcon(get_icon_path()))
         label = QLabel("ICC-CE 批注加载中...")
@@ -152,7 +154,7 @@ class FAQWindow(QWidget):
     """常见问题独立窗口"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("常见问题")
+        self.setWindowTitle("希沃批注替换 - 常见问题")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.setWindowFlags(Qt.Window) # type: ignore
 
@@ -162,8 +164,7 @@ class FAQWindow(QWidget):
         # 问题 1
         lbl_q1 = QLabel("<b>Q: 弹出「需要使用新应用以打开此 icc 链接」窗口</b>")
         lbl_a1 = QLabel("A: 请开启 ICC-CE「启用外部协议 (icc://)」设置项。\n"
-                        "路径：ICC-CE 工具栏 > 工具 > 设置 > 新设置窗口 > 打开新设置窗口 > "
-                        "高级选项 > 外部协议调用 > 开启「启用外部协议 (icc://)」设置项。")
+                        "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。")
         lbl_a1.setWordWrap(True)
 
         # 问题 2
@@ -193,7 +194,7 @@ class FAQWindow(QWidget):
 class SettingsWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ICC-CE 批注替换 - 设置")
+        self.setWindowTitle("希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.settings = load_settings()
         self._init_ui = True
@@ -286,7 +287,12 @@ class SettingsWindow(QWidget):
         bottom_layout.addStretch()
         self.btn_about = QPushButton("关于")
         self.btn_about.setFixedWidth(80)
-        self.btn_about.clicked.connect(lambda: QMessageBox.about(self, "关于 ICC-CE 批注替换", "ICC-CE 批注替换 v2.0\n本程序可替换「希沃桌面2.0 桌面批注」为 ICC-CE 批注。"))
+        self.btn_about.clicked.connect(
+            lambda: QMessageBox.about(
+                self, "关于希沃批注替换", 
+                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0 桌面批注」为 ICC-CE 批注。"
+                )
+                )
         self.btn_close = QPushButton("关闭")
         self.btn_close.setFixedWidth(80)
         self.btn_close.clicked.connect(self.close)
@@ -333,7 +339,7 @@ class SettingsWindow(QWidget):
         except Exception:
             pass
 
-        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\ICC-CE 批注替换设置.lnk"
+        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换.lnk"
         lnk_ok = os.path.exists(lnk_path)
 
         if reg_ok and lnk_ok:
@@ -368,7 +374,7 @@ class SettingsWindow(QWidget):
         if not sw_name:
             return True
 
-        msg_box = QMessageBox(QMessageBox.Warning, "警告", "", parent=self) # type: ignore
+        msg_box = QMessageBox(QMessageBox.Warning, "希沃批注替换", "", parent=self) # type: ignore
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(
             f"<h3>请关闭「{sw_name}」</h3>"
@@ -409,10 +415,9 @@ class SettingsWindow(QWidget):
             if current == "installed" and not self._install_completed_message_shown:
                 self._install_completed_message_shown = True
                 QMessageBox.information(
-                    self, "提示",
+                    self, "希沃批注替换",
                     "<h3>请开启「外部协议调用」</h3>"
-                    "<p>本程序需要 ICC-CE 开启该功能后才可正常使用，路径：ICC-CE 工具栏 > 工具 > 设置 > "
-                    "新设置窗口 > 打开新设置窗口 > 高级选项 > 外部协议调用 > 开启「启用外部协议 (icc://)」设置项。</p>"
+                    "<p>本程序需要 ICC-CE 开启该功能后才可正常使用，路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。</p>"
                 )
             self._last_installed_state = current
             self.refresh_timer.stop()
@@ -458,12 +463,12 @@ def main():
     app = QApplication(sys.argv)
 
     if not is_installed() and not args:
-        msg_box = QMessageBox(QMessageBox.Information, "提示", "") # type: ignore
+        msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "") # type: ignore
         msg_box.setWindowIcon(QIcon(get_icon_path()))
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(
             "<h3>欢迎</h3>"
-            "<p>欢迎使用「ICC-CE 批注替换」！</p>"
+            "<p>欢迎使用「希沃批注替换」！</p>"
             "<p>使用本程序前，请先确保您的计算机上安装了「InkCanvasForClass Community Edition」，且版本大于 1.7.18.7。"
             "您可以单击下方按钮前往官网或 Github 上下载。</p>"
         )
