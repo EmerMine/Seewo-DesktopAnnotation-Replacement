@@ -9,7 +9,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 
 def get_base_dir():
     if getattr(sys, 'frozen', False):
