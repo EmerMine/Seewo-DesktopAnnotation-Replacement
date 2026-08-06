@@ -1,35 +1,18 @@
 import sys
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont, QGuiApplication, QIcon
-from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QPushButton, QMessageBox, QVBoxLayout,
-)
 import os
 import webbrowser
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
+from unhide_annotation_apps import icc_ce
 from utils import (
     load_settings,
-    run_protocol,
     is_installed,
     get_icon_path,
     apply_style,
     apply_theme,
 )
-
-class LoadingWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("希沃批注替换")
-        self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint) # type: ignore
-        self.setWindowIcon(QIcon(get_icon_path()))
-        label = QLabel("ICC-CE 批注加载中...")
-        label.setFont(QFont("微软雅黑", 12))
-        layout = QVBoxLayout()
-        layout.addWidget(label)
-        layout.setContentsMargins(20, 15, 20, 15)
-        self.setLayout(layout)
-        self.adjustSize()
-        self.setFixedSize(self.size())
 
 def main():
     args = sys.argv[1:]
@@ -71,28 +54,7 @@ def main():
         w.show()
         sys.exit(app.exec())
 
-    settings = load_settings()
-    run_protocol("icc://unfold")
-    if settings.get("auto_pen", False):
-        run_protocol("icc://tool/pen")
-    if settings.get("show_loading_window", True):
-        screen = QGuiApplication.primaryScreen()
-        geom = screen.availableGeometry()
-        win1 = LoadingWindow()
-        win2 = LoadingWindow()
-        w, h = win1.width(), win1.height()
-        x1 = geom.left()
-        x2 = geom.left() + geom.width() - w
-        y = geom.top() + (geom.height() - h) // 2
-        win1.move(x1, y)
-        win2.move(x2, y)
-        win1.show()
-        win2.show()
-        dur_ms = settings.get("loading_duration", 3) * 1000
-        QTimer.singleShot(dur_ms, lambda: (win1.close(), win2.close(), app.quit()))
-        sys.exit(app.exec())
-    else:
-        sys.exit(0)
+    sys.exit(icc_ce.run())
 
 if __name__ == "__main__":
     main()
