@@ -1,6 +1,8 @@
 {
     "show_loading_window": true,
-    "auto_pen": true,
+    "auto_pen": false,
     "thorough_hide": false,
-    "loading_duration": 3
+    "loading_duration": 3,
+    "theme": "light",
+    "style": "windowsvista"
 }

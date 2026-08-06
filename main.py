@@ -12,6 +12,8 @@ from utils import (
     run_protocol,
     is_installed,
     get_icon_path,
+    apply_style,
+    apply_theme,
 )
 
 class LoadingWindow(QWidget):
@@ -32,9 +34,10 @@ class LoadingWindow(QWidget):
 def main():
     args = sys.argv[1:]
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True) # type: ignore
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True) # type: ignore
     app = QApplication(sys.argv)
+    settings = load_settings()
+    apply_style(settings.get("style", "windowsvista"))
+    apply_theme(settings.get("theme", "system"))
 
     if not is_installed() and not args:
         msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "") # type: ignore

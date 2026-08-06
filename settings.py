@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QPushButton, QCheckBox, QSpinBox, QMessageBox,
+    QPushButton, QCheckBox, QSpinBox, QMessageBox, QComboBox,
     QSpacerItem, QSizePolicy, QGroupBox, QStyle,
 )
 from utils import (
@@ -15,6 +15,8 @@ from utils import (
     load_settings,
     save_settings,
     run_protocol,
+    apply_style,
+    apply_theme,
     check_security_software_running,
     create_and_run_bat,
 )
@@ -120,6 +122,41 @@ class SettingsWindow(QWidget):
         replace_layout.addWidget(self.chk_pen)
         grp_replace.setLayout(replace_layout)
 
+        style_row = QHBoxLayout()
+        style_row.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
+        style_row.addWidget(QLabel("风格："))
+        self.cmb_style = QComboBox()
+        self.cmb_style.addItem("系统默认", "windowsvista")
+        self.cmb_style.addItem("Fusion", "Fusion")
+        current_style = self.settings.get("style", "windowsvista")
+        idx = self.cmb_style.findData(current_style)
+        self.cmb_style.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cmb_style.currentIndexChanged.connect(self.on_style_changed)
+        style_row.addWidget(self.cmb_style)
+        style_row.addStretch()
+
+        theme_row = QHBoxLayout()
+        theme_row.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
+        theme_row.addWidget(QLabel("主题："))
+        self.cmb_theme = QComboBox()
+        self.cmb_theme.addItem("跟随系统", "system")
+        self.cmb_theme.addItem("浅色", "light")
+        self.cmb_theme.addItem("深色", "dark")
+        current_theme = self.settings.get("theme", "system")
+        idx = self.cmb_theme.findData(current_theme)
+        self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cmb_theme.currentIndexChanged.connect(self.on_theme_changed)
+        theme_row.addWidget(self.cmb_theme)
+        theme_row.addStretch()
+
+        grp_common = QGroupBox("通用")
+        common_layout = QVBoxLayout()
+        common_layout.addLayout(style_row)
+        common_layout.addLayout(theme_row)
+        grp_common.setLayout(common_layout)
+
+        self._sync_theme_enabled()
+
         self.chk_hide = QCheckBox("收纳时彻底隐藏")
         self.chk_hide.setChecked(self.settings["thorough_hide"])
         self.chk_hide.toggled.connect(self.on_hide_toggled)
@@ -161,6 +198,7 @@ class SettingsWindow(QWidget):
 
         main_layout = QVBoxLayout()
         main_layout.addWidget(grp_install)
+        main_layout.addWidget(grp_common)
         main_layout.addWidget(grp_replace)
         main_layout.addWidget(grp_icc)
         main_layout.addStretch()
@@ -297,6 +335,30 @@ class SettingsWindow(QWidget):
     def on_pen_toggled(self, checked):
         self.settings["auto_pen"] = checked
         save_settings(self.settings)
+
+    def _sync_theme_enabled(self):
+        is_fusion = self.cmb_style.currentData() == "Fusion"
+        self.cmb_theme.setEnabled(is_fusion)
+        if not is_fusion:
+            idx = self.cmb_theme.findData("light")
+            if idx >= 0:
+                self.cmb_theme.setCurrentIndex(idx)
+
+    def on_style_changed(self, _index):
+        style = self.cmb_style.currentData()
+        self.settings["style"] = style
+        if style != "Fusion":
+            self.settings["theme"] = "light"
+        save_settings(self.settings)
+        apply_style(style)
+        apply_theme(self.settings["theme"])
+        self._sync_theme_enabled()
+
+    def on_theme_changed(self, _index):
+        theme = self.cmb_theme.currentData()
+        self.settings["theme"] = theme
+        save_settings(self.settings)
+        apply_theme(theme)
 
     def on_hide_toggled(self, checked):
         if self._init_ui:

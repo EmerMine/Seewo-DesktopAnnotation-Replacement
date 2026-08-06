@@ -5,8 +5,9 @@ import subprocess
 import tempfile
 import ctypes
 import winreg
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPalette
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 VERSION = "2.0.1"
 
@@ -40,7 +41,25 @@ DEFAULT_SETTINGS = {
     "auto_pen": False,
     "thorough_hide": False,
     "loading_duration": 3,
+    "theme": "system",
+    "style": "windowsvista",
 }
+
+_THEME_TO_SCHEME = {
+    "dark": Qt.ColorScheme.Dark,
+    "light": Qt.ColorScheme.Light,
+    "system": Qt.ColorScheme.Unknown,
+}
+
+def apply_style(style_name):
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyle(style_name) # type: ignore
+    app.setPalette(QPalette()) # type: ignore
+
+def apply_theme(theme):
+    scheme = _THEME_TO_SCHEME.get(theme, Qt.ColorScheme.Unknown)
+    QApplication.styleHints().setColorScheme(scheme) # type: ignore
+    QApplication.instance().setPalette(QPalette()) # type: ignore
 
 def load_settings():
     config_path = get_config_path()
