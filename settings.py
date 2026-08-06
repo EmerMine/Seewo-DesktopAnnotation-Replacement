@@ -197,7 +197,7 @@ class SettingsWindow(QWidget):
         except Exception:
             pass
 
-        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换.lnk"
+        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
         lnk_ok = os.path.exists(lnk_path)
 
         if reg_ok and lnk_ok:
@@ -205,6 +205,7 @@ class SettingsWindow(QWidget):
         elif not reg_ok and not lnk_ok:
             return "not_installed"
         else:
+            print(f"reg: {reg_ok}, lnk: {lnk_ok}")
             return "broken"
 
     def update_install_buttons(self):

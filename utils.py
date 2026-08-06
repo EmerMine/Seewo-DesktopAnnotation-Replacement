@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import ctypes
 import winreg
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QMessageBox
 
 VERSION = "2.0.1"
@@ -104,10 +105,15 @@ def check_security_software_running():
         pass
     return None
 
+def _critical(text):
+    msg = QMessageBox(QMessageBox.Critical, "希沃批注替换", text) # type: ignore
+    msg.setWindowIcon(QIcon(get_icon_path()))
+    msg.exec()
+
 def create_and_run_bat(is_install):
     target_exe = os.path.join(get_base_dir(), "Annotation.exe")
     if is_install and not os.path.exists(target_exe):
-        QMessageBox.critical(None, "希沃批注替换", f"未找到 {target_exe}")
+        _critical(f"未找到 {target_exe}")
         return
 
     lnk_path_str = r"%ProgramData%\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
@@ -135,4 +141,4 @@ del "%~f0"
             None, "runas", bat_path, "", None, 0
         )
     except Exception as e:
-        QMessageBox.critical(None, "希沃批注替换", f"执行失败：{e}")
+        _critical(f"执行失败：{e}")

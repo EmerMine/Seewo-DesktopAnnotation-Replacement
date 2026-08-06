@@ -4,6 +4,7 @@ from PySide6.QtGui import QFont, QGuiApplication, QIcon
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QMessageBox, QVBoxLayout,
 )
+import os
 import webbrowser
 from settings import SettingsWindow
 from utils import (
@@ -30,6 +31,7 @@ class LoadingWindow(QWidget):
 
 def main():
     args = sys.argv[1:]
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True) # type: ignore
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True) # type: ignore
     app = QApplication(sys.argv)
