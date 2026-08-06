@@ -18,6 +18,45 @@ from utils import (
 )
 
 
+class FAQWindow(QWidget):
+    """常见问题独立窗口"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("常见问题 - 希沃批注替换")
+        self.setWindowIcon(QIcon(get_icon_path()))
+        self.setWindowFlags(Qt.Window) # type: ignore
+
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+
+        lbl_q1 = QLabel("<b>Q: 弹出「需要使用新应用以打开此 icc 链接」窗口</b>")
+        lbl_a1 = QLabel("A: 请开启 ICC-CE「启用外部协议 (icc://)」设置项。\n"
+                        "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。")
+        lbl_a1.setWordWrap(True)
+
+        lbl_q2 = QLabel("<b>Q: 切换到批注模式时，无法自动切换到笔</b>")
+        lbl_a2 = QLabel("A: 将 ICC-CE 升级到 1.7.18.7 及以上。")
+        lbl_a2.setWordWrap(True)
+
+        btn_ok = QPushButton("OK")
+        btn_ok.setFixedWidth(80)
+        btn_ok.setDefault(True)
+        btn_ok.clicked.connect(self.close)
+        bottom_layout = QHBoxLayout()
+        bottom_layout.addStretch()
+        bottom_layout.addWidget(btn_ok)
+
+        layout.addWidget(lbl_q1)
+        layout.addWidget(lbl_a1)
+        layout.addSpacing(10)
+        layout.addWidget(lbl_q2)
+        layout.addWidget(lbl_a2)
+        layout.addStretch()
+        layout.addLayout(bottom_layout)
+        self.setLayout(layout)
+        self.resize(420, 280)
+
+
 class ICCCESettingsWindow(QWidget):
     """ICC-CE 专用设置窗口"""
     def __init__(self):
@@ -117,6 +156,9 @@ class ICCCESettingsWindow(QWidget):
         warning_layout.addWidget(warning_text, 1)
 
         bottom_layout = QHBoxLayout()
+        self.btn_faq = QPushButton("常见问题")
+        self.btn_faq.clicked.connect(self.show_faq)
+        bottom_layout.addWidget(self.btn_faq)
         bottom_layout.addStretch()
         self.btn_close = QPushButton("关闭")
         self.btn_close.setFixedWidth(80)
@@ -137,6 +179,10 @@ class ICCCESettingsWindow(QWidget):
     def restore_hide_cb(self):
         self.chk_hide.setText("收纳时彻底隐藏")
         self.chk_hide.setEnabled(True)
+
+    def show_faq(self):
+        self.faq_window = FAQWindow()
+        self.faq_window.show()
 
     def on_show_toggled(self, checked):
         self.settings["show_loading_window"] = checked

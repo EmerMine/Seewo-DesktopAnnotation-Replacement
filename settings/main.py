@@ -4,7 +4,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import winreg
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QIcon
+from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
 )
 from utils import (
     VERSION,
+    DEFAULT_SETTINGS,
     get_base_dir,
     get_icon_path,
     get_shield_icon_path,
@@ -27,45 +28,6 @@ from utils import (
 )
 from .icc_ce import ICCCESettingsWindow
 from .none import NoneSettingsWindow
-
-
-class FAQWindow(QWidget):
-    """常见问题独立窗口"""
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("常见问题 - 希沃批注替换")
-        self.setWindowIcon(QIcon(get_icon_path()))
-        self.setWindowFlags(Qt.Window) # type: ignore
-
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
-
-        lbl_q1 = QLabel("<b>Q: 弹出「需要使用新应用以打开此 icc 链接」窗口</b>")
-        lbl_a1 = QLabel("A: 请开启 ICC-CE「启用外部协议 (icc://)」设置项。\n"
-                        "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。")
-        lbl_a1.setWordWrap(True)
-
-        lbl_q2 = QLabel("<b>Q: 切换到批注模式时，无法自动切换到笔</b>")
-        lbl_a2 = QLabel("A: 将 ICC-CE 升级到 1.7.18.7 及以上。")
-        lbl_a2.setWordWrap(True)
-
-        btn_ok = QPushButton("OK")
-        btn_ok.setFixedWidth(80)
-        btn_ok.setDefault(True)
-        btn_ok.clicked.connect(self.close)
-        bottom_layout = QHBoxLayout()
-        bottom_layout.addStretch()
-        bottom_layout.addWidget(btn_ok)
-
-        layout.addWidget(lbl_q1)
-        layout.addWidget(lbl_a1)
-        layout.addSpacing(10)
-        layout.addWidget(lbl_q2)
-        layout.addWidget(lbl_a2)
-        layout.addStretch()
-        layout.addLayout(bottom_layout)
-        self.setLayout(layout)
-        self.resize(420, 280)
 
 
 class SettingsWindow(QWidget):
@@ -190,10 +152,15 @@ class SettingsWindow(QWidget):
         replace_layout.addLayout(row_icc_ce)
         grp_replace.setLayout(replace_layout)
 
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        reset_color = "#ff6b6b" if is_dark else "#cc0000"
         bottom_layout = QHBoxLayout()
-        self.btn_faq = QPushButton("常见问题")
-        self.btn_faq.clicked.connect(self.show_faq)
-        bottom_layout.addWidget(self.btn_faq)
+        self.btn_reset = QPushButton("重置设置")
+        reset_palette = self.btn_reset.palette()
+        reset_palette.setColor(QPalette.ButtonText, reset_color) # type: ignore
+        self.btn_reset.setPalette(reset_palette)
+        self.btn_reset.clicked.connect(self.on_reset_clicked)
+        bottom_layout.addWidget(self.btn_reset)
         bottom_layout.addStretch()
         self.btn_about = QPushButton("关于")
         self.btn_about.setFixedWidth(80)
@@ -318,9 +285,52 @@ class SettingsWindow(QWidget):
             self.refresh_timer.stop()
             self.update_install_buttons()
 
-    def show_faq(self):
-        self.faq_window = FAQWindow()
-        self.faq_window.show()
+    def on_reset_clicked(self):
+        msg_box = QMessageBox(QMessageBox.Warning, "希沃批注替换", "", parent=self) # type: ignore
+        msg_box.setTextFormat(Qt.RichText) # type: ignore
+        msg_box.setText(
+            "<h3>确定要重置设置吗？</h3>"
+            "<p>重置设置将恢复所有配置至默认值，此操作不可撤销。</p>"
+        )
+        btn_confirm = msg_box.addButton("确认", QMessageBox.DestructiveRole) # type: ignore
+        btn_cancel = msg_box.addButton("取消", QMessageBox.RejectRole) # type: ignore
+        msg_box.setDefaultButton(btn_cancel)
+        msg_box.exec()
+        if msg_box.clickedButton() != btn_confirm:
+            return
+        save_settings(DEFAULT_SETTINGS.copy())
+        self.settings = load_settings()
+        self._refresh_ui_from_settings()
+        QMessageBox.information(self, "希沃批注替换", "设置已重置为默认值。")
+
+    def _refresh_ui_from_settings(self):
+        style = self.settings.get("style", "windowsvista")
+        idx = self.cmb_style.findData(style)
+        self.cmb_style.setCurrentIndex(idx if idx >= 0 else 0)
+
+        theme = self.settings.get("theme", "system")
+        idx = self.cmb_theme.findData(theme)
+        self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
+
+        product = self.settings.get("ink_product", "none")
+        product_map = {"none": self.radio_none, "ica": self.radio_ia, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        target = product_map.get(product, self.radio_none)
+        self.radio_group.setExclusive(False)
+        for rb in (self.radio_none, self.radio_ia, self.radio_icc, self.radio_icc_ce):
+            rb.setChecked(rb is target)
+        self.radio_group.setExclusive(True)
+
+        self.chk_start_menu.blockSignals(True)
+        self.chk_start_menu.setChecked(shortcut_exists("start_menu"))
+        self.chk_start_menu.blockSignals(False)
+        self.chk_desktop.blockSignals(True)
+        self.chk_desktop.setChecked(shortcut_exists("desktop"))
+        self.chk_desktop.blockSignals(False)
+
+        self._sync_theme_enabled()
+        apply_style(style)
+        apply_theme(theme)
+        self.update_install_buttons()
 
     def on_product_changed(self, btn_id):
         product_map = {0: "none", 1: "ica", 2: "icc", 3: "icc_ce"}

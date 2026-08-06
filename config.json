@@ -1,10 +1,10 @@
 {
-    "ink_product": "icc_ce",
+    "ink_product": "none",
     "show_loading_window": true,
     "auto_pen": false,
     "thorough_hide": false,
     "loading_duration": 3,
-    "theme": "system",
+    "theme": "dark",
     "style": "Fusion",
     "none_show_disabled_msg": true,
     "none_msg_duration": 2
