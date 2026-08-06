@@ -33,11 +33,16 @@ def run():
         return 0
     screen = QGuiApplication.primaryScreen()
     geom = screen.availableGeometry()
-    win = DisabledMessageWindow()
-    x = geom.left() + (geom.width() - win.width()) // 2
-    y = geom.top() + (geom.height() - win.height()) // 2
-    win.move(x, y)
-    win.show()
+    win1 = DisabledMessageWindow()
+    win2 = DisabledMessageWindow()
+    w, h = win1.width(), win1.height()
+    x1 = geom.left()
+    x2 = geom.left() + geom.width() - w
+    y = geom.top() + (geom.height() - h) // 2
+    win1.move(x1, y)
+    win2.move(x2, y)
+    win1.show()
+    win2.show()
     dur_ms = max(1, int(settings.get("none_msg_duration", 2))) * 1000
-    QTimer.singleShot(dur_ms, lambda: (win.close(), QApplication.instance().quit())) # type: ignore
+    QTimer.singleShot(dur_ms, lambda: (win1.close(), win2.close(), QApplication.instance().quit())) # type: ignore
     return QApplication.instance().exec() # type: ignore
