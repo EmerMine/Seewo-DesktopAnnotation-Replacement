@@ -4,7 +4,6 @@ import json
 import subprocess
 import tempfile
 import ctypes
-import webbrowser
 import winreg
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QGuiApplication, QIcon
@@ -93,7 +92,6 @@ def check_security_software_running():
         "360tray.exe": "360安全卫士",
         "qqpctray.exe": "腾讯电脑管家",
         "pyas.exe": "PYAS Security Antivirus",
-        # 常用的就这些吧，懒得补了
     }
     try:
         output = subprocess.check_output(
@@ -140,21 +138,6 @@ del "%~f0"
     except Exception as e:
         QMessageBox.critical(None, "希沃批注替换", f"执行失败：{e}")
 
-class LoadingWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("希沃批注替换")
-        self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint) # type: ignore
-        self.setWindowIcon(QIcon(get_icon_path()))
-        label = QLabel("ICC-CE 批注加载中...")
-        label.setFont(QFont("微软雅黑", 12))
-        layout = QVBoxLayout()
-        layout.addWidget(label)
-        layout.setContentsMargins(20, 15, 20, 15)
-        self.setLayout(layout)
-        self.adjustSize()
-        self.setFixedSize(self.size())
-
 class FAQWindow(QWidget):
     """常见问题独立窗口"""
     def __init__(self, parent=None):
@@ -166,18 +149,15 @@ class FAQWindow(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(10)
 
-        # 问题 1
         lbl_q1 = QLabel("<b>Q: 弹出「需要使用新应用以打开此 icc 链接」窗口</b>")
         lbl_a1 = QLabel("A: 请开启 ICC-CE「启用外部协议 (icc://)」设置项。\n"
                         "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。")
         lbl_a1.setWordWrap(True)
 
-        # 问题 2
         lbl_q2 = QLabel("<b>Q: 切换到批注模式时，无法自动切换到笔</b>")
         lbl_a2 = QLabel("A: 将 ICC-CE 升级到 1.7.18.7 及以上。")
         lbl_a2.setWordWrap(True)
 
-        # OK 按钮（右下角，默认按钮）
         btn_ok = QPushButton("OK")
         btn_ok.setFixedWidth(80)
         btn_ok.setDefault(True)
@@ -204,14 +184,12 @@ class SettingsWindow(QWidget):
         self.settings = load_settings()
         self._init_ui = True
 
-        # 安装状态行：状态标签在左，刷新和安装/卸载按钮在右
         self.lbl_install_status = QLabel()
         self.btn_refresh = QPushButton("刷新")
         self.btn_refresh.setFixedWidth(80)
         self.btn_refresh.clicked.connect(self.on_refresh_clicked)
         self.btn_action = QPushButton()
         self.btn_action.setFixedWidth(80)
-        # 添加 admin.ico 图标
         shield_path = get_shield_icon_path()
         if os.path.exists(shield_path):
             self.btn_action.setIcon(QIcon(shield_path))
@@ -225,8 +203,6 @@ class SettingsWindow(QWidget):
         grp_install = QGroupBox("安装状态")
         grp_install.setLayout(install_row)
 
-        # ---- 其余 UI 不变 ----
-        # 显示加载窗口
         self.chk_show = QCheckBox("显示加载窗口")
         self.chk_show.setChecked(self.settings["show_loading_window"])
         self.chk_show.toggled.connect(self.on_show_toggled)
@@ -263,7 +239,6 @@ class SettingsWindow(QWidget):
         replace_layout.addWidget(self.chk_pen)
         grp_replace.setLayout(replace_layout)
 
-        # 收纳时彻底隐藏 + 显示工具栏按钮
         self.chk_hide = QCheckBox("收纳时彻底隐藏")
         self.chk_hide.setChecked(self.settings["thorough_hide"])
         self.chk_hide.toggled.connect(self.on_hide_toggled)
@@ -284,7 +259,6 @@ class SettingsWindow(QWidget):
         self.thorough_timer.setSingleShot(True)
         self.thorough_timer.timeout.connect(self.restore_hide_cb)
 
-        # 底部按钮
         bottom_layout = QHBoxLayout()
         self.btn_faq = QPushButton("常见问题")
         self.btn_faq.clicked.connect(self.show_faq)
@@ -294,7 +268,7 @@ class SettingsWindow(QWidget):
         self.btn_about.setFixedWidth(80)
         self.btn_about.clicked.connect(
             lambda: QMessageBox.about(
-                self, "关于希沃批注替换", 
+                self, "关于希沃批注替换",
                 f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0 桌面批注」为 ICC-CE 批注。"
                 )
                 )
@@ -312,11 +286,9 @@ class SettingsWindow(QWidget):
         main_layout.addLayout(bottom_layout)
         self.setLayout(main_layout)
 
-        # 状态刷新定时器
         self.refresh_timer = QTimer(self)
         self.refresh_timer.setInterval(500)
         self.refresh_timer.timeout.connect(self.check_install_status)
-        # 延迟安装检查定时器（单次）
         self._delay_install_check_timer = QTimer(self)
         self._delay_install_check_timer.setSingleShot(True)
         self._delay_install_check_timer.timeout.connect(self._start_install_check)
@@ -324,7 +296,7 @@ class SettingsWindow(QWidget):
         self._last_installed_state = None
         self._refresh_attempts = 0
         self._install_completed_message_shown = False
-        self._install_status = None   # 当前安装状态字符串
+        self._install_status = None
 
         self._init_ui = False
         self.update_install_buttons()
@@ -460,67 +432,3 @@ class SettingsWindow(QWidget):
     def on_dur_changed(self, val):
         self.settings["loading_duration"] = val
         save_settings(self.settings)
-
-def main():
-    args = sys.argv[1:]
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True) # type: ignore
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True) # type: ignore
-    app = QApplication(sys.argv)
-
-    if not is_installed() and not args:
-        msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "") # type: ignore
-        msg_box.setWindowIcon(QIcon(get_icon_path()))
-        msg_box.setTextFormat(Qt.RichText) # type: ignore
-        msg_box.setText(
-            "<h3>欢迎</h3>"
-            "<p>欢迎使用「希沃批注替换」！</p>"
-            "<p>使用本程序前，请先确保您的计算机上安装了「InkCanvasForClass Community Edition」，且版本大于 1.7.18.7。"
-            f"您可以单击下方按钮前往官网或 Github 上下载。</p>"
-        )
-        btn_website = QPushButton("前往官网")
-        btn_github = QPushButton("前往 Github")
-        msg_box.addButton(btn_website, QMessageBox.AcceptRole) # type: ignore
-        msg_box.addButton(btn_github, QMessageBox.AcceptRole) # type: ignore
-        msg_box.addButton("OK", QMessageBox.AcceptRole) # type: ignore
-        btn_website.clicked.connect(
-            lambda: webbrowser.open("https://inkcanvasforclass.github.io/website/download")
-        )
-        btn_github.clicked.connect(
-            lambda: webbrowser.open("https://github.com/InkCanvasForClass/community/releases")
-        )
-        msg_box.exec()
-
-        w = SettingsWindow()
-        w.show()
-        sys.exit(app.exec())
-
-    if "-settings" in args:
-        w = SettingsWindow()
-        w.show()
-        sys.exit(app.exec())
-
-    settings = load_settings()
-    run_protocol("icc://unfold")
-    if settings.get("auto_pen", False):
-        run_protocol("icc://tool/pen")
-    if settings.get("show_loading_window", True):
-        screen = QGuiApplication.primaryScreen()
-        geom = screen.availableGeometry()
-        win1 = LoadingWindow()
-        win2 = LoadingWindow()
-        w, h = win1.width(), win1.height()
-        x1 = geom.left()
-        x2 = geom.left() + geom.width() - w
-        y = geom.top() + (geom.height() - h) // 2
-        win1.move(x1, y)
-        win2.move(x2, y)
-        win1.show()
-        win2.show()
-        dur_ms = settings.get("loading_duration", 3) * 1000
-        QTimer.singleShot(dur_ms, lambda: (win1.close(), win2.close(), app.quit()))
-        sys.exit(app.exec())
-    else:
-        sys.exit(0)
-
-if __name__ == "__main__":
-    main()
