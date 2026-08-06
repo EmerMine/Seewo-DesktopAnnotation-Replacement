@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QMessageBox, QVBoxLayout,
 )
 import webbrowser
-from settings import (
-    SettingsWindow,
+from settings import SettingsWindow
+from utils import (
     load_settings,
     run_protocol,
     is_installed,
