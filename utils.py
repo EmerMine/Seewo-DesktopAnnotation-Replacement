@@ -23,11 +23,16 @@ def get_data_dir():
 def get_config_path():
     return os.path.join(get_data_dir(), "config.json")
 
+def _is_win11():
+    ver = sys.getwindowsversion()
+    return ver.build >= 22000
+
 def get_icon_path():
-    return os.path.join(get_data_dir(), "icon.ico")
+    return os.path.join(get_data_dir(), "resources", "icon.ico")
 
 def get_shield_icon_path():
-    return os.path.join(get_data_dir(), "admin.ico")
+    filename = "win11.ico" if _is_win11() else "win10.ico"
+    return os.path.join(get_data_dir(), "resources", "admin", filename)
 
 DEFAULT_SETTINGS = {
     "show_loading_window": True,
