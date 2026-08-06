@@ -1,8 +1,11 @@
 {
+    "ink_product": "icc_ce",
     "show_loading_window": true,
     "auto_pen": false,
     "thorough_hide": false,
     "loading_duration": 3,
-    "theme": "light",
-    "style": "windowsvista"
+    "theme": "system",
+    "style": "Fusion",
+    "none_show_disabled_msg": true,
+    "none_msg_duration": 2
 }

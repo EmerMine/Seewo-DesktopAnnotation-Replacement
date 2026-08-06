@@ -37,12 +37,15 @@ def get_shield_icon_path():
     return os.path.join(get_data_dir(), "resources", "admin", filename)
 
 DEFAULT_SETTINGS = {
+    "ink_product": "none",
     "show_loading_window": True,
     "auto_pen": False,
     "thorough_hide": False,
     "loading_duration": 3,
     "theme": "system",
     "style": "windowsvista",
+    "none_show_disabled_msg": True,
+    "none_msg_duration": 2,
 }
 
 _THEME_TO_SCHEME = {
@@ -97,10 +100,7 @@ def is_installed():
         debugger, _ = winreg.QueryValueEx(key, "Debugger")
         winreg.CloseKey(key)
         expected = os.path.join(get_base_dir(), "Annotation.exe")
-        if debugger.strip('"') != expected:
-            return False
-        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
-        return os.path.exists(lnk_path)
+        return debugger.strip('"') == expected
     except Exception:
         return False
 
@@ -124,6 +124,50 @@ def check_security_software_running():
         pass
     return None
 
+SHORTCUT_NAME = "希沃批注替换设置.lnk"
+START_MENU_LNK = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
+                              r"Microsoft\Windows\Start Menu\Programs", SHORTCUT_NAME)
+DESKTOP_LNK = os.path.join(os.path.expanduser("~"), "Desktop", SHORTCUT_NAME)
+
+def shortcut_exists(kind):
+    if kind == "start_menu":
+        return os.path.exists(START_MENU_LNK)
+    if kind == "desktop":
+        return os.path.exists(DESKTOP_LNK)
+    return False
+
+def create_shortcut(kind):
+    target = os.path.join(get_base_dir(), "Annotation.exe")
+    if kind == "start_menu":
+        lnk = START_MENU_LNK
+    elif kind == "desktop":
+        lnk = DESKTOP_LNK
+    else:
+        return False
+    try:
+        subprocess.run(
+            ["powershell", "-Command",
+             "$wsh = New-Object -ComObject WScript.Shell;"
+             f"$s = $wsh.CreateShortcut('{lnk}');"
+             f"$s.TargetPath = '{target}';"
+             "$s.Arguments = '-settings';"
+             "$s.Save()"],
+            check=True, capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        return True
+    except Exception as e:
+        raise RuntimeError(str(e)) from e
+
+def delete_shortcut(kind):
+    if kind == "start_menu":
+        lnk = START_MENU_LNK
+    elif kind == "desktop":
+        lnk = DESKTOP_LNK
+    else:
+        return
+    if os.path.exists(lnk):
+        os.remove(lnk)
+
 def _critical(text):
     msg = QMessageBox(QMessageBox.Critical, "希沃批注替换", text) # type: ignore
     msg.setWindowIcon(QIcon(get_icon_path()))
@@ -135,20 +179,17 @@ def create_and_run_bat(is_install):
         _critical(f"未找到 {target_exe}")
         return
 
-    lnk_path_str = r"%ProgramData%\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
     reg_key = r"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DesktopAnnotation.exe"
 
     if is_install:
         bat_content = f'''@echo off
 reg add "{reg_key}" /v Debugger /t REG_SZ /d "\\"{target_exe}\\"" /f
 if %errorlevel% neq 0 exit /b 1
-powershell -Command "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{lnk_path_str}'); $Shortcut.TargetPath = '{target_exe}'; $Shortcut.Arguments = '-settings'; $Shortcut.Save()"
 del "%~f0"
 '''
     else:
         bat_content = f'''@echo off
 reg delete "{reg_key}" /f
-if exist "{lnk_path_str}" del /f /q "{lnk_path_str}"
 del "%~f0"
 '''
 

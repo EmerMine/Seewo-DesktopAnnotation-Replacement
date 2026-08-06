@@ -5,7 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
-from unhide_annotation_apps import icc_ce
+from unhide_annotation_apps import icc_ce, none
 from utils import (
     load_settings,
     is_installed,
@@ -13,6 +13,7 @@ from utils import (
     apply_style,
     apply_theme,
 )
+
 
 def main():
     args = sys.argv[1:]
@@ -29,19 +30,31 @@ def main():
         msg_box.setText(
             "<h3>欢迎</h3>"
             "<p>欢迎使用「希沃批注替换」！</p>"
-            "<p>使用本程序前，请先确保您的计算机上安装了「InkCanvasForClass Community Edition」，且版本大于 1.7.18.7。"
-            "您可以单击下方按钮前往官网或 Github 上下载。</p>"
+            "<p>使用本程序前，请先确保您的计算机上安装了以下任意软件：</p>"
+            "<ul>"
+            "<li>「Ink Canvas Artistry (ICA)」任意版本</li>"
+            "<li>「InkCanvasForClass (ICC)」任意版本</li>"
+            "<li>「InkCanvasForClass Community Edition (ICC-CE)」1.7.18.7+</li>"
+            "</ul>"
+            "您可以单击下方按钮前往 Github 下载。</p>"
         )
-        btn_website = QPushButton("前往官网")
-        btn_github = QPushButton("前往 Github")
-        msg_box.addButton(btn_website, QMessageBox.AcceptRole) # type: ignore
-        msg_box.addButton(btn_github, QMessageBox.AcceptRole) # type: ignore
-        msg_box.addButton("OK", QMessageBox.AcceptRole) # type: ignore
-        btn_website.clicked.connect(
-            lambda: webbrowser.open("https://inkcanvasforclass.github.io/website/download")
+        btn_ica_website = QPushButton("ICA Github")
+        btn_icc_website = QPushButton("ICC Github")
+        btn_icc_ce_website = QPushButton("ICC-CE Github")
+        msg_box.addButton(btn_ica_website, QMessageBox.AcceptRole) # type: ignore
+        msg_box.addButton(btn_icc_website, QMessageBox.AcceptRole) # type: ignore
+        msg_box.addButton(btn_icc_ce_website, QMessageBox.AcceptRole) # type: ignore
+        ok_btn = msg_box.addButton("OK", QMessageBox.AcceptRole) # type: ignore
+        msg_box.setDefaultButton(ok_btn)
+        
+        btn_ica_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/InkCanvas/Ink-Canvas-Artistry")
         )
-        btn_github.clicked.connect(
-            lambda: webbrowser.open("https://github.com/InkCanvasForClass/community/releases")
+        btn_icc_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/InkCanvas/InkCanvasForClass")
+        )
+        btn_icc_ce_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/InkCanvasForClass/community")
         )
         msg_box.exec()
 
@@ -53,6 +66,9 @@ def main():
         w = SettingsWindow()
         w.show()
         sys.exit(app.exec())
+
+    if settings.get("ink_product") == "none":
+        sys.exit(none.run())
 
     sys.exit(icc_ce.run())
 

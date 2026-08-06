@@ -1,11 +1,14 @@
 import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import winreg
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QWidget, QLabel, QVBoxLayout, QHBoxLayout,
-    QPushButton, QCheckBox, QSpinBox, QMessageBox, QComboBox,
-    QSpacerItem, QSizePolicy, QGroupBox, QStyle,
+    QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
+    QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
+    QGroupBox,
 )
 from utils import (
     VERSION,
@@ -14,18 +17,23 @@ from utils import (
     get_shield_icon_path,
     load_settings,
     save_settings,
-    run_protocol,
     apply_style,
     apply_theme,
     check_security_software_running,
     create_and_run_bat,
+    shortcut_exists,
+    create_shortcut,
+    delete_shortcut,
 )
+from .icc_ce import ICCCESettingsWindow
+from .none import NoneSettingsWindow
+
 
 class FAQWindow(QWidget):
     """常见问题独立窗口"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("希沃批注替换 - 常见问题")
+        self.setWindowTitle("常见问题 - 希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.setWindowFlags(Qt.Window) # type: ignore
 
@@ -59,6 +67,7 @@ class FAQWindow(QWidget):
         self.setLayout(layout)
         self.resize(420, 280)
 
+
 class SettingsWindow(QWidget):
     def __init__(self):
         super().__init__()
@@ -67,63 +76,29 @@ class SettingsWindow(QWidget):
         self.settings = load_settings()
         self._init_ui = True
 
-        self.lbl_install_status = QLabel()
-        self.btn_refresh = QPushButton("刷新")
-        self.btn_refresh.setFixedWidth(80)
-        self.btn_refresh.clicked.connect(self.on_refresh_clicked)
+        self.lbl_install_status = None
+        self.btn_refresh = None
         self.btn_action = QPushButton()
-        self.btn_action.setFixedWidth(80)
         shield_path = get_shield_icon_path()
         if os.path.exists(shield_path):
             self.btn_action.setIcon(QIcon(shield_path))
         self.btn_action.clicked.connect(self.on_action_clicked)
 
-        install_row = QHBoxLayout()
-        install_row.addWidget(self.lbl_install_status)
-        install_row.addStretch()
-        install_row.addWidget(self.btn_refresh)
-        install_row.addWidget(self.btn_action)
-        grp_install = QGroupBox("安装状态")
-        grp_install.setLayout(install_row)
-
-        self.chk_show = QCheckBox("显示加载窗口")
-        self.chk_show.setChecked(self.settings["show_loading_window"])
-        self.chk_show.toggled.connect(self.on_show_toggled)
-
-        indent = (self.style().pixelMetric(QStyle.PM_IndicatorWidth) + # type: ignore
-                  self.style().pixelMetric(QStyle.PM_CheckBoxLabelSpacing)) # type: ignore
-        dur_layout = QHBoxLayout()
-        dur_layout.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
-        dur_layout.addWidget(QLabel("加载窗口显示时长（秒）："))
-        self.spin_dur = QSpinBox()
-        self.spin_dur.setRange(1, 10)
-        self.spin_dur.setValue(self.settings["loading_duration"])
-        self.spin_dur.valueChanged.connect(self.on_dur_changed)
-        dur_layout.addWidget(self.spin_dur)
-        dur_layout.addStretch()
-        self.spin_dur.setEnabled(self.settings["show_loading_window"])
-
-        lbl_hint = QLabel("请按计算机运行 icc:// 协议的时长酌情调整")
-        lbl_hint.setStyleSheet("color: gray; font-size: 9pt;")
-        hint_layout = QHBoxLayout()
-        hint_layout.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
-        hint_layout.addWidget(lbl_hint)
-        hint_layout.addStretch()
-
-        self.chk_pen = QCheckBox("自动切换为笔")
-        self.chk_pen.setChecked(self.settings["auto_pen"])
-        self.chk_pen.toggled.connect(self.on_pen_toggled)
-
-        grp_replace = QGroupBox("批注替换")
-        replace_layout = QVBoxLayout()
-        replace_layout.addWidget(self.chk_show)
-        replace_layout.addLayout(dur_layout)
-        replace_layout.addLayout(hint_layout)
-        replace_layout.addWidget(self.chk_pen)
-        grp_replace.setLayout(replace_layout)
+        self.chk_start_menu = QCheckBox("开始菜单快捷方式")
+        self.chk_start_menu._original_text = "开始菜单快捷方式" # type: ignore
+        self.chk_start_menu.setChecked(shortcut_exists("start_menu"))
+        self.chk_start_menu.toggled.connect(self.on_start_menu_toggled)
+        self.chk_desktop = QCheckBox("桌面快捷方式")
+        self.chk_desktop._original_text = "桌面快捷方式" # type: ignore
+        self.chk_desktop.setChecked(shortcut_exists("desktop"))
+        self.chk_desktop.toggled.connect(self.on_desktop_toggled)
+        grp_shortcuts = QGroupBox("快捷方式")
+        shortcuts_layout = QVBoxLayout()
+        shortcuts_layout.addWidget(self.chk_start_menu)
+        shortcuts_layout.addWidget(self.chk_desktop)
+        grp_shortcuts.setLayout(shortcuts_layout)
 
         style_row = QHBoxLayout()
-        style_row.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
         style_row.addWidget(QLabel("风格："))
         self.cmb_style = QComboBox()
         self.cmb_style.addItem("系统默认", "windowsvista")
@@ -136,7 +111,6 @@ class SettingsWindow(QWidget):
         style_row.addStretch()
 
         theme_row = QHBoxLayout()
-        theme_row.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
         theme_row.addWidget(QLabel("主题："))
         self.cmb_theme = QComboBox()
         self.cmb_theme.addItem("跟随系统", "system")
@@ -155,27 +129,66 @@ class SettingsWindow(QWidget):
         common_layout.addLayout(theme_row)
         grp_common.setLayout(common_layout)
 
-        self._sync_theme_enabled()
+        self.radio_group = QButtonGroup(self)
+        self.radio_none = QRadioButton("空程序（禁用希沃桌面批注）")
+        self.radio_ia = QRadioButton("Ink Canvas Artistry (WIP)")
+        self.radio_ia.setEnabled(False)
+        self.radio_icc = QRadioButton("InkCanvasForClass (WIP)")
+        self.radio_icc.setEnabled(False)
+        self.radio_icc_ce = QRadioButton("ICC-CE")
+        self.radio_group.addButton(self.radio_none, 0)
+        self.radio_group.addButton(self.radio_ia, 1)
+        self.radio_group.addButton(self.radio_icc, 2)
+        self.radio_group.addButton(self.radio_icc_ce, 3)
+        product = self.settings.get("ink_product", "none")
+        product_map = {"none": self.radio_none, "ica": self.radio_ia, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product_map.get(product, self.radio_none).setChecked(True)
+        self.radio_group.idClicked.connect(self.on_product_changed)
 
-        self.chk_hide = QCheckBox("收纳时彻底隐藏")
-        self.chk_hide.setChecked(self.settings["thorough_hide"])
-        self.chk_hide.toggled.connect(self.on_hide_toggled)
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        link_color = "#7ab8ff" if is_dark else "#0066cc"
+        link_style = f"<a href='#' style='color: {link_color}; text-decoration: none;'>设置</a>"
+        self.lbl_set_none = QLabel(link_style)
+        self.lbl_set_ia = QLabel(link_style)
+        self.lbl_set_icc = QLabel(link_style)
+        self.lbl_set_icc_ce = QLabel(link_style)
+        for lbl in (self.lbl_set_none, self.lbl_set_ia, self.lbl_set_icc, self.lbl_set_icc_ce):
+            lbl.setOpenExternalLinks(False)
+            lbl.setCursor(Qt.PointingHandCursor) # type: ignore
 
-        self.btn_show_toolbar = QPushButton("显示 ICC-CE 工具栏")
-        self.btn_show_toolbar.clicked.connect(lambda: run_protocol("icc://unfold"))
+        self.lbl_set_none.linkActivated.connect(lambda: self._open_product_settings("none"))
+        self.lbl_set_ia.linkActivated.connect(lambda: self._open_product_settings("ica"))
+        self.lbl_set_icc.linkActivated.connect(lambda: self._open_product_settings("icc"))
+        self.lbl_set_icc_ce.linkActivated.connect(lambda: self._open_product_settings("icc_ce"))
 
-        icc_layout = QVBoxLayout()
-        icc_layout.addWidget(self.chk_hide)
-        btn_row = QHBoxLayout()
-        btn_row.addWidget(self.btn_show_toolbar)
-        btn_row.addStretch()
-        icc_layout.addLayout(btn_row)
-        grp_icc = QGroupBox("ICC-CE 隐藏设置")
-        grp_icc.setLayout(icc_layout)
+        row_none = QHBoxLayout()
+        row_none.addWidget(self.radio_none)
+        row_none.addStretch()
+        row_none.addWidget(self.lbl_set_none)
+        row_ia = QHBoxLayout()
+        row_ia.addWidget(self.radio_ia)
+        row_ia.addStretch()
+        row_ia.addWidget(self.lbl_set_ia)
+        row_icc = QHBoxLayout()
+        row_icc.addWidget(self.radio_icc)
+        row_icc.addStretch()
+        row_icc.addWidget(self.lbl_set_icc)
+        row_icc_ce = QHBoxLayout()
+        row_icc_ce.addWidget(self.radio_icc_ce)
+        row_icc_ce.addStretch()
+        row_icc_ce.addWidget(self.lbl_set_icc_ce)
 
-        self.thorough_timer = QTimer(self)
-        self.thorough_timer.setSingleShot(True)
-        self.thorough_timer.timeout.connect(self.restore_hide_cb)
+        grp_replace = QGroupBox("批注替换")
+        replace_layout = QVBoxLayout()
+        hijack_row = QHBoxLayout()
+        hijack_row.addWidget(self.btn_action)
+        hijack_row.addStretch()
+        replace_layout.addLayout(hijack_row)
+        replace_layout.addLayout(row_none)
+        replace_layout.addLayout(row_ia)
+        replace_layout.addLayout(row_icc)
+        replace_layout.addLayout(row_icc_ce)
+        grp_replace.setLayout(replace_layout)
 
         bottom_layout = QHBoxLayout()
         self.btn_faq = QPushButton("常见问题")
@@ -187,7 +200,7 @@ class SettingsWindow(QWidget):
         self.btn_about.clicked.connect(
             lambda: QMessageBox.about(
                 self, "关于希沃批注替换",
-                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0 桌面批注」为 ICC-CE 批注。"
+                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0+ 桌面批注」为 ICC-CE 批注。"
                 )
                 )
         self.btn_close = QPushButton("关闭")
@@ -197,10 +210,9 @@ class SettingsWindow(QWidget):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout = QVBoxLayout()
-        main_layout.addWidget(grp_install)
+        main_layout.addWidget(grp_shortcuts)
         main_layout.addWidget(grp_common)
         main_layout.addWidget(grp_replace)
-        main_layout.addWidget(grp_icc)
         main_layout.addStretch()
         main_layout.addLayout(bottom_layout)
         self.setLayout(main_layout)
@@ -214,16 +226,15 @@ class SettingsWindow(QWidget):
 
         self._last_installed_state = None
         self._refresh_attempts = 0
-        self._install_completed_message_shown = False
         self._install_status = None
 
+        self._sync_theme_enabled()
         self._init_ui = False
         self.update_install_buttons()
-        self.resize(320, 430)
+        self.resize(300, 380)
 
     def _get_install_status(self):
-        """检查注册表和快捷方式，返回 'installed', 'broken' 或 'not_installed'"""
-        reg_ok = False
+        """检查注册表，返回 'installed' 或 'not_installed'"""
         try:
             key_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DesktopAnnotation.exe"
             key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
@@ -231,40 +242,31 @@ class SettingsWindow(QWidget):
             winreg.CloseKey(key)
             expected = os.path.join(get_base_dir(), "Annotation.exe")
             if debugger.strip('"') == expected:
-                reg_ok = True
+                return "installed"
         except Exception:
             pass
-
-        lnk_path = r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\希沃批注替换设置.lnk"
-        lnk_ok = os.path.exists(lnk_path)
-
-        if reg_ok and lnk_ok:
-            return "installed"
-        elif not reg_ok and not lnk_ok:
-            return "not_installed"
-        else:
-            print(f"reg: {reg_ok}, lnk: {lnk_ok}")
-            return "broken"
+        return "not_installed"
 
     def update_install_buttons(self):
         status = self._get_install_status()
         self._install_status = status
         if status == "installed":
-            self.btn_action.setText("卸载")
-            self.lbl_install_status.setText("√ 已安装")
-            self.lbl_install_status.setStyleSheet("color: green")
-        elif status == "broken":
-            self.btn_action.setText("修复")
-            self.lbl_install_status.setText("[!] 安装损坏")
-            self.lbl_install_status.setStyleSheet("color: #FFA500")
+            self.btn_action.setText("取消劫持希沃桌面批注")
         else:
-            self.btn_action.setText("安装")
-            self.lbl_install_status.setText("× 未安装")
-            self.lbl_install_status.setStyleSheet("color: red")
+            self.btn_action.setText("劫持希沃桌面批注")
+        self._sync_radio_enabled()
 
-    def restore_hide_cb(self):
-        self.chk_hide.setText("收纳时彻底隐藏")
-        self.chk_hide.setEnabled(True)
+    def _sync_radio_enabled(self):
+        is_hijacked = self._install_status == "installed"
+        self.radio_none.setEnabled(is_hijacked)
+        self.radio_icc_ce.setEnabled(is_hijacked)
+        if not is_hijacked:
+            self.radio_group.setExclusive(False)
+            self.radio_none.setChecked(False)
+            self.radio_ia.setChecked(False)
+            self.radio_icc.setChecked(False)
+            self.radio_icc_ce.setChecked(False)
+            self.radio_group.setExclusive(True)
 
     def _warn_security_software(self):
         sw_name = check_security_software_running()
@@ -275,7 +277,7 @@ class SettingsWindow(QWidget):
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(
             f"<h3>请关闭「{sw_name}」</h3>"
-            "<p>该程序通过映像劫持替换「希沃桌面2.0 桌面批注」，这是系统敏感操作，"
+            "<p>该程序通过映像劫持替换「希沃桌面2.0+ 桌面批注」，这是系统敏感操作，"
             "可能会被安全软件拦截导致安装失败。请退出安全软件后单击「继续」。</p>"
         )
         btn_continue = msg_box.addButton("继续", QMessageBox.AcceptRole) # type: ignore
@@ -309,13 +311,6 @@ class SettingsWindow(QWidget):
         current = self._get_install_status()
         self._refresh_attempts += 1
         if current != self._last_installed_state:
-            if current == "installed" and not self._install_completed_message_shown:
-                self._install_completed_message_shown = True
-                QMessageBox.information(
-                    self, "希沃批注替换",
-                    "<h3>请开启「外部协议调用」</h3>"
-                    "<p>本程序需要 ICC-CE 开启该功能后才可正常使用，路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。</p>"
-                )
             self._last_installed_state = current
             self.refresh_timer.stop()
             self.update_install_buttons()
@@ -327,14 +322,23 @@ class SettingsWindow(QWidget):
         self.faq_window = FAQWindow()
         self.faq_window.show()
 
-    def on_show_toggled(self, checked):
-        self.settings["show_loading_window"] = checked
-        self.spin_dur.setEnabled(checked)
+    def on_product_changed(self, btn_id):
+        product_map = {0: "none", 1: "ica", 2: "icc", 3: "icc_ce"}
+        self.settings["ink_product"] = product_map.get(btn_id, "none")
         save_settings(self.settings)
 
-    def on_pen_toggled(self, checked):
-        self.settings["auto_pen"] = checked
-        save_settings(self.settings)
+    def _open_product_settings(self, product):
+        if product == "icc_ce":
+            self.icc_ce_window = ICCCESettingsWindow()
+            self.icc_ce_window.show()
+        elif product == "none":
+            self.none_window = NoneSettingsWindow()
+            self.none_window.show()
+        else:
+            QMessageBox.information(
+                self, "希沃批注替换",
+                f"{product} 设置暂未开放。"
+            )
 
     def _sync_theme_enabled(self):
         is_fusion = self.cmb_style.currentData() == "Fusion"
@@ -360,19 +364,30 @@ class SettingsWindow(QWidget):
         save_settings(self.settings)
         apply_theme(theme)
 
-    def on_hide_toggled(self, checked):
-        if self._init_ui:
-            return
-        if checked:
-            run_protocol("icc://thoroughhideon")
-        else:
-            run_protocol("icc://thoroughhideoff")
-        self.settings["thorough_hide"] = checked
-        save_settings(self.settings)
-        self.chk_hide.setEnabled(False)
-        self.chk_hide.setText("设置中，请稍后...")
-        self.thorough_timer.start(3000)
+    def _do_shortcut(self, kind, checked, checkbox):
+        checkbox.setText("创建中，请稍后……")
+        checkbox.setEnabled(False)
+        QTimer.singleShot(0, lambda: self._run_shortcut_work(kind, checked, checkbox))
 
-    def on_dur_changed(self, val):
-        self.settings["loading_duration"] = val
-        save_settings(self.settings)
+    def _run_shortcut_work(self, kind, checked, checkbox):
+        try:
+            if checked:
+                create_shortcut(kind)
+            else:
+                delete_shortcut(kind)
+        except Exception as e:
+            QMessageBox.warning(
+                self, "希沃批注替换",
+                f"快捷方式操作失败：{e}"
+            )
+        checkbox.blockSignals(True)
+        checkbox.setChecked(shortcut_exists(kind))
+        checkbox.blockSignals(False)
+        checkbox.setText(checkbox._original_text)
+        checkbox.setEnabled(True)
+
+    def on_start_menu_toggled(self, checked):
+        self._do_shortcut("start_menu", checked, self.chk_start_menu)
+
+    def on_desktop_toggled(self, checked):
+        self._do_shortcut("desktop", checked, self.chk_desktop)

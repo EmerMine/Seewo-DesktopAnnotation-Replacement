@@ -18,7 +18,7 @@ class LoadingWindow(QWidget):
         self.setWindowTitle("希沃批注替换")
         self.setWindowFlags(Qt.Tool | Qt.WindowStaysOnTopHint | Qt.WindowCloseButtonHint) # type: ignore
         self.setWindowIcon(QIcon(get_icon_path()))
-        label = QLabel("ICC-CE 批注加载中...")
+        label = QLabel("ICC-CE 批注加载中……")
         label.setFont(QFont("微软雅黑", 12))
         layout = QVBoxLayout()
         layout.addWidget(label)
