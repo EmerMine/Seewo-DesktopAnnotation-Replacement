@@ -236,6 +236,7 @@ class SettingsWindow(QWidget):
     def update_install_buttons(self):
         status = self._get_install_status()
         self._install_status = status
+        self.btn_action.setEnabled(True)
         if status == "installed":
             self.btn_action.setText("取消劫持希沃桌面批注")
         else:
@@ -287,10 +288,15 @@ class SettingsWindow(QWidget):
         self._delay_install_check_timer.stop()
         self._last_installed_state = self._install_status
         self._refresh_attempts = 0
-        if self._install_status == "installed":
-            create_and_run_bat(is_install=False)
-        else:
-            create_and_run_bat(is_install=True)
+        is_installing = self._install_status != "installed"
+        self.btn_action.setEnabled(False)
+        self.btn_action.setText("劫持中，请稍后……" if is_installing else "取消劫持中，请稍后……")
+        try:
+            create_and_run_bat(is_install=is_installing)
+        except Exception:
+            self.btn_action.setEnabled(True)
+            self.update_install_buttons()
+            return
         self._delay_install_check_timer.start(3000)
 
     def check_install_status(self):
