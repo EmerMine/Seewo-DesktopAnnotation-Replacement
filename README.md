@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="banner.png" alt="banner" width="400">
+<img src="banner.png" alt="banner" width="200">
 
 # Seewo-DesktopAnnotation-Replacement - 希沃批注替换
 
