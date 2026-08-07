@@ -1,5 +1,6 @@
 import os
 import sys
+import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import winreg
@@ -8,7 +9,7 @@ from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
-    QGroupBox, QFrame, QStyle,
+    QGroupBox, QFrame, QStyle, 
 )
 from utils import (
     VERSION,
@@ -182,12 +183,7 @@ class SettingsWindow(QWidget):
         bottom_layout.addStretch()
         self.btn_about = QPushButton("关于")
         self.btn_about.setFixedWidth(80)
-        self.btn_about.clicked.connect(
-            lambda: QMessageBox.about(
-                self, "关于希沃批注替换",
-                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0+ 桌面批注」为第三方批注。"
-                )
-                )
+        self.btn_about.clicked.connect(self._show_about)
         self.btn_close = QPushButton("关闭")
         self.btn_close.setFixedWidth(80)
         self.btn_close.clicked.connect(self.close)
@@ -374,6 +370,24 @@ class SettingsWindow(QWidget):
                 self, "希沃批注替换",
                 f"{product} 设置暂未开放。"
             )
+
+    def _show_about(self):
+        msg_box = QMessageBox(QMessageBox.Information, "关于希沃批注替换", "", parent=self) # type: ignore
+        msg_box.setTextFormat(Qt.RichText) # type: ignore
+        msg_box.setText(
+            f"<h3>希沃批注替换 v{VERSION}</h3>"
+            "<p>替换「希沃桌面2.0+ 桌面批注」为第三方批注。</p>"
+        )
+        # btn_check_update = msg_box.addButton("检查更新", QMessageBox.ResetRole) # type: ignore
+        btn_github = msg_box.addButton("GitHub", QMessageBox.AcceptRole) # type: ignore
+        btn_close = msg_box.addButton("关闭", QMessageBox.AcceptRole) # type: ignore
+        msg_box.setDefaultButton(btn_close)
+        msg_box.exec()
+        clicked = msg_box.clickedButton()
+        if clicked == btn_github:
+            webbrowser.open("https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement")
+        # elif clicked == btn_check_update:
+        #     pass
 
     def _apply_info_banner_style(self):
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
