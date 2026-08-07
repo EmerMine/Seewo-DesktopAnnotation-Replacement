@@ -174,7 +174,7 @@ class ICCCESettingsWindow(QWidget):
         self.setLayout(main_layout)
 
         self._init_ui = False
-        self.resize(360, 400)
+        self.resize(380, 400)
 
     def restore_hide_cb(self):
         self.chk_hide.setText("收纳时彻底隐藏")
