@@ -86,7 +86,8 @@ class ICCCESettingsWindow(QWidget):
         self.spin_dur.setEnabled(self.settings["show_loading_window"])
 
         lbl_hint = QLabel("请按计算机运行 icc:// 协议的时长酌情调整")
-        lbl_hint.setStyleSheet("color: gray; font-size: 9pt;")
+        hint_color = "#b0b0b0" if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark else "gray" # type: ignore
+        lbl_hint.setStyleSheet(f"color: {hint_color}; font-size: 9pt;")
         hint_layout = QHBoxLayout()
         hint_layout.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
         hint_layout.addWidget(lbl_hint)
@@ -124,36 +125,26 @@ class ICCCESettingsWindow(QWidget):
         self.thorough_timer.setSingleShot(True)
         self.thorough_timer.timeout.connect(self.restore_hide_cb)
 
-        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
         is_win11 = _is_win11()
         border_radius = "6px" if is_win11 else "0px"
-        if is_dark:
-            bg_color = "#4a3f1f"
-            text_color = "#f7d87a"
-        else:
-            bg_color = "#fff3cd"
-            text_color = "#856404"
 
-        warning_frame = QFrame()
-        warning_frame.setStyleSheet(
-            f"QFrame {{ background-color: {bg_color}; border-radius: {border_radius}; }}"
-        )
-        warning_layout = QHBoxLayout(warning_frame)
-        warning_layout.setContentsMargins(10, 8, 10, 8)
-        icon_label = QLabel()
-        icon_label.setPixmap(self.style().standardIcon( # type: ignore
-            QStyle.StandardPixmap.SP_MessageBoxWarning # type: ignore
-        ).pixmap(16, 16))
-        warning_text = QLabel(
+        self.warning_frame = QFrame()
+        self.warning_text = QLabel(
             "<b>请确保 ICC-CE 已开启「启用外部协议 (icc://)」设置项。</b><br>"
             "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」。"
         )
-        warning_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
-        warning_text.setTextFormat(Qt.RichText) # type: ignore
-        warning_text.setWordWrap(True)
-        warning_layout.addWidget(icon_label, 0, Qt.AlignTop) # type: ignore
-        warning_layout.addSpacing(6)
-        warning_layout.addWidget(warning_text, 1)
+        self.warning_text.setTextFormat(Qt.RichText) # type: ignore
+        self.warning_text.setWordWrap(True)
+        self.icon_label = QLabel()
+        self.warning_layout = QHBoxLayout(self.warning_frame)
+        self.warning_layout.setContentsMargins(10, 8, 10, 8)
+        self.warning_layout.addWidget(self.icon_label, 0, Qt.AlignTop) # type: ignore
+        self.warning_layout.addSpacing(6)
+        self.warning_layout.addWidget(self.warning_text, 1)
+        self._warning_border_radius = border_radius
+        self._apply_warning_style()
+
+        QApplication.styleHints().colorSchemeChanged.connect(self._apply_warning_style) # type: ignore
 
         bottom_layout = QHBoxLayout()
         self.btn_faq = QPushButton("常见问题")
@@ -166,7 +157,7 @@ class ICCCESettingsWindow(QWidget):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout = QVBoxLayout()
-        main_layout.addWidget(warning_frame)
+        main_layout.addWidget(self.warning_frame)
         main_layout.addWidget(grp_replace)
         main_layout.addWidget(grp_icc)
         main_layout.addStretch()
@@ -179,6 +170,22 @@ class ICCCESettingsWindow(QWidget):
     def restore_hide_cb(self):
         self.chk_hide.setText("收纳时彻底隐藏")
         self.chk_hide.setEnabled(True)
+
+    def _apply_warning_style(self):
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        if is_dark:
+            bg_color = "#4a3f1f"
+            text_color = "#f7d87a"
+        else:
+            bg_color = "#fff3cd"
+            text_color = "#856404"
+        self.warning_frame.setStyleSheet(
+            f"QFrame {{ background-color: {bg_color}; border-radius: {self._warning_border_radius}; }}"
+        )
+        self.warning_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
+        self.icon_label.setPixmap(self.style().standardIcon( # type: ignore
+            QStyle.StandardPixmap.SP_MessageBoxWarning # type: ignore
+        ).pixmap(16, 16))
 
     def show_faq(self):
         self.faq_window = FAQWindow()
