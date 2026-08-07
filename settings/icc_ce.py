@@ -22,7 +22,7 @@ class FAQWindow(QWidget):
     """常见问题独立窗口"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("常见问题 - 希沃批注替换")
+        self.setWindowTitle("FAQ - ICC-CE 设置 - 希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.setWindowFlags(Qt.Window) # type: ignore
 
@@ -147,7 +147,7 @@ class ICCCESettingsWindow(QWidget):
         QApplication.styleHints().colorSchemeChanged.connect(self._apply_warning_style) # type: ignore
 
         bottom_layout = QHBoxLayout()
-        self.btn_faq = QPushButton("常见问题")
+        self.btn_faq = QPushButton("FAQ")
         self.btn_faq.clicked.connect(self.show_faq)
         bottom_layout.addWidget(self.btn_faq)
         bottom_layout.addStretch()
