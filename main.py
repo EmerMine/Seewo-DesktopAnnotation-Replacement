@@ -5,6 +5,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
+from settings.update import check_for_update, check_for_update_async
 from unhide_annotation_apps import icc_ce, none
 from utils import (
     load_settings,
@@ -60,17 +61,27 @@ def main():
 
         w = SettingsWindow()
         w.show()
+        if settings.get("auto_check_update", True):
+            check_for_update_async(parent=w, show_dialog=True) # type: ignore
         sys.exit(app.exec())
 
     if "-settings" in args:
         w = SettingsWindow()
         w.show()
+        if settings.get("auto_check_update", True):
+            check_for_update_async(parent=w, show_dialog=True)
         sys.exit(app.exec())
 
     if settings.get("ink_product") == "none":
-        sys.exit(none.run())
+        exit_code = none.run()
+        if settings.get("auto_check_update", True):
+            check_for_update()
+        sys.exit(exit_code)
 
-    sys.exit(icc_ce.run())
+    exit_code = icc_ce.run()
+    if settings.get("auto_check_update", True):
+        check_for_update()
+    sys.exit(exit_code)
 
 if __name__ == "__main__":
     main()

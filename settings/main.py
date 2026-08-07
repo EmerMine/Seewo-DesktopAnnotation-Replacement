@@ -4,12 +4,12 @@ import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import winreg
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
-    QGroupBox, QFrame, QStyle, 
+    QGroupBox, QFrame, QStyle,
 )
 from utils import (
     VERSION,
@@ -30,6 +30,7 @@ from utils import (
 )
 from .icc_ce import ICCCESettingsWindow
 from .none import NoneSettingsWindow
+from .update import check_for_update
 
 
 class SettingsWindow(QWidget):
@@ -104,10 +105,15 @@ class SettingsWindow(QWidget):
         theme_row.addWidget(self.cmb_theme)
         theme_row.addStretch()
 
+        self.chk_auto_update = QCheckBox("自动检查更新")
+        self.chk_auto_update.setChecked(self.settings.get("auto_check_update", True))
+        self.chk_auto_update.toggled.connect(self.on_auto_update_toggled)
+
         grp_common = QGroupBox("通用")
         common_layout = QVBoxLayout()
         common_layout.addLayout(style_row)
         common_layout.addLayout(theme_row)
+        common_layout.addWidget(self.chk_auto_update)
         grp_common.setLayout(common_layout)
 
         self.radio_group = QButtonGroup(self)
@@ -348,6 +354,10 @@ class SettingsWindow(QWidget):
         self.chk_desktop.setChecked(shortcut_exists("desktop"))
         self.chk_desktop.blockSignals(False)
 
+        self.chk_auto_update.blockSignals(True)
+        self.chk_auto_update.setChecked(self.settings.get("auto_check_update", True))
+        self.chk_auto_update.blockSignals(False)
+
         self._sync_theme_enabled()
         apply_style(style)
         apply_theme(theme)
@@ -373,21 +383,40 @@ class SettingsWindow(QWidget):
 
     def _show_about(self):
         msg_box = QMessageBox(QMessageBox.Information, "关于希沃批注替换", "", parent=self) # type: ignore
+        icon = QIcon(get_icon_path())
+        msg_box.setIconPixmap(icon.pixmap(QSize(48, 48)))
+        msg_box.setWindowIcon(icon)
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(
             f"<h3>希沃批注替换 v{VERSION}</h3>"
             "<p>替换「希沃桌面2.0+ 桌面批注」为第三方批注。</p>"
         )
-        # btn_check_update = msg_box.addButton("检查更新", QMessageBox.ResetRole) # type: ignore
+        btn_check_update = msg_box.addButton("检查更新", QMessageBox.ResetRole) # type: ignore
         btn_github = msg_box.addButton("GitHub", QMessageBox.AcceptRole) # type: ignore
         btn_close = msg_box.addButton("关闭", QMessageBox.AcceptRole) # type: ignore
         msg_box.setDefaultButton(btn_close)
+        msg_box.setEscapeButton(btn_close)
+
+        # Disconnect QMessageBox's default click handler so the dialog
+        # stays open when user clicks "检查更新".
+        try:
+            btn_check_update.clicked.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        btn_check_update.clicked.connect(self._on_about_check_update)
+
         msg_box.exec()
         clicked = msg_box.clickedButton()
         if clicked == btn_github:
             webbrowser.open("https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement")
-        # elif clicked == btn_check_update:
-        #     pass
+
+    def _on_about_check_update(self):
+        release = check_for_update(present=False)
+        if release is None:
+            QMessageBox.information(self, "希沃批注替换", "当前已是最新版本。")
+        else:
+            from .update import UpdateDialog
+            UpdateDialog(release, parent=None).exec()
 
     def _apply_info_banner_style(self):
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
@@ -428,6 +457,10 @@ class SettingsWindow(QWidget):
         self.settings["theme"] = theme
         save_settings(self.settings)
         apply_theme(theme)
+
+    def on_auto_update_toggled(self, checked):
+        self.settings["auto_check_update"] = checked
+        save_settings(self.settings)
 
     def _do_shortcut(self, kind, checked, checkbox):
         checkbox.setText("创建中，请稍后……")

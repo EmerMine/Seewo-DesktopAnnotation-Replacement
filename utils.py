@@ -46,6 +46,9 @@ DEFAULT_SETTINGS = {
     "style": "windowsvista",
     "none_show_disabled_msg": True,
     "none_msg_duration": 2,
+    "auto_check_update": True,
+    "update_never_remind": False,
+    "update_skipped_version": None,
 }
 
 _THEME_TO_SCHEME = {
