@@ -185,7 +185,7 @@ class SettingsWindow(QWidget):
         self.btn_about.clicked.connect(
             lambda: QMessageBox.about(
                 self, "关于希沃批注替换",
-                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0+ 桌面批注」为 ICC-CE 批注。"
+                f"希沃批注替换 v{VERSION}\n替换「希沃桌面2.0+ 桌面批注」为第三方批注。"
                 )
                 )
         self.btn_close = QPushButton("关闭")
