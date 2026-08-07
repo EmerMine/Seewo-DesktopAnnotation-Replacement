@@ -74,7 +74,6 @@ class SettingsWindow(QWidget):
 
         grp_shortcuts = QGroupBox("快捷方式")
         shortcuts_layout = QVBoxLayout()
-        shortcuts_layout.addWidget(self.info_frame)
         shortcuts_layout.addWidget(self.chk_start_menu)
         shortcuts_layout.addWidget(self.chk_desktop)
         grp_shortcuts.setLayout(shortcuts_layout)
@@ -196,6 +195,7 @@ class SettingsWindow(QWidget):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout = QVBoxLayout()
+        main_layout.addWidget(self.info_frame)
         main_layout.addWidget(grp_shortcuts)
         main_layout.addWidget(grp_common)
         main_layout.addWidget(grp_replace)
