@@ -8,7 +8,7 @@ from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
-    QGroupBox,
+    QGroupBox, QFrame, QStyle,
 )
 from utils import (
     VERSION,
@@ -25,6 +25,7 @@ from utils import (
     shortcut_exists,
     create_shortcut,
     delete_shortcut,
+    _is_win11,
 )
 from .icc_ce import ICCCESettingsWindow
 from .none import NoneSettingsWindow
@@ -54,8 +55,26 @@ class SettingsWindow(QWidget):
         self.chk_desktop._original_text = "桌面快捷方式" # type: ignore
         self.chk_desktop.setChecked(shortcut_exists("desktop"))
         self.chk_desktop.toggled.connect(self.on_desktop_toggled)
+
+        is_win11 = _is_win11()
+        self._info_border_radius = "6px" if is_win11 else "0px"
+        self.info_frame = QFrame()
+        self.info_text = QLabel(
+            "可通过「.\\Annotation.exe -settings」命令打开本设置窗口。"
+        )
+        self.info_text.setWordWrap(True)
+        self.info_icon = QLabel()
+        info_layout = QHBoxLayout(self.info_frame)
+        info_layout.setContentsMargins(8, 6, 8, 6)
+        info_layout.addWidget(self.info_icon, 0, Qt.AlignTop) # type: ignore
+        info_layout.addSpacing(4)
+        info_layout.addWidget(self.info_text, 1)
+        self._apply_info_banner_style()
+        QApplication.styleHints().colorSchemeChanged.connect(self._apply_info_banner_style) # type: ignore
+
         grp_shortcuts = QGroupBox("快捷方式")
         shortcuts_layout = QVBoxLayout()
+        shortcuts_layout.addWidget(self.info_frame)
         shortcuts_layout.addWidget(self.chk_start_menu)
         shortcuts_layout.addWidget(self.chk_desktop)
         grp_shortcuts.setLayout(shortcuts_layout)
@@ -349,6 +368,22 @@ class SettingsWindow(QWidget):
                 self, "希沃批注替换",
                 f"{product} 设置暂未开放。"
             )
+
+    def _apply_info_banner_style(self):
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        if is_dark:
+            bg_color = "#1e3a5f"
+            text_color = "#a8d4f0"
+        else:
+            bg_color = "#d1ecf1"
+            text_color = "#0c5460"
+        self.info_frame.setStyleSheet(
+            f"QFrame {{ background-color: {bg_color}; border-radius: {self._info_border_radius}; }}"
+        )
+        self.info_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
+        self.info_icon.setPixmap(self.style().standardIcon( # type: ignore
+            QStyle.StandardPixmap.SP_MessageBoxInformation # type: ignore
+        ).pixmap(14, 14))
 
     def _sync_theme_enabled(self):
         is_fusion = self.cmb_style.currentData() == "Fusion"
