@@ -392,23 +392,25 @@ class SettingsWindow(QWidget):
             "<p>替换「希沃桌面2.0+ 桌面批注」为第三方批注。</p>"
         )
         btn_check_update = msg_box.addButton("检查更新", QMessageBox.ResetRole) # type: ignore
-        btn_github = msg_box.addButton("GitHub", QMessageBox.AcceptRole) # type: ignore
-        btn_close = msg_box.addButton("关闭", QMessageBox.AcceptRole) # type: ignore
+        btn_github = msg_box.addButton("GitHub", QMessageBox.ActionRole) # type: ignore
+        btn_close = msg_box.addButton("关闭", QMessageBox.RejectRole) # type: ignore
         msg_box.setDefaultButton(btn_close)
         msg_box.setEscapeButton(btn_close)
 
         # Disconnect QMessageBox's default click handler so the dialog
-        # stays open when user clicks "检查更新".
+        # stays open when user clicks "检查更新" or "GitHub".
         try:
             btn_check_update.clicked.disconnect()
         except (RuntimeError, TypeError):
             pass
+        try:
+            btn_github.clicked.disconnect()
+        except (RuntimeError, TypeError):
+            pass
         btn_check_update.clicked.connect(self._on_about_check_update)
+        btn_github.clicked.connect(self._on_about_github)
 
         msg_box.exec()
-        clicked = msg_box.clickedButton()
-        if clicked == btn_github:
-            webbrowser.open("https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement")
 
     def _on_about_check_update(self):
         release = check_for_update(present=False)
@@ -417,6 +419,9 @@ class SettingsWindow(QWidget):
         else:
             from .update import UpdateDialog
             UpdateDialog(release, parent=None).exec()
+
+    def _on_about_github(self):
+        webbrowser.open("https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement")
 
     def _apply_info_banner_style(self):
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
