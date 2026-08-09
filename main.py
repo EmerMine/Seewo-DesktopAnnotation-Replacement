@@ -31,29 +31,40 @@ def main():
         msg_box.setText(
             "<h3>欢迎</h3>"
             "<p>欢迎使用「希沃批注替换」！</p>"
-            "<p>使用本程序前，建议在您的计算机上安装以下任意软件：</p>"
+            "<p>使用本程序前，建议在您的计算机上安装以下软件，以替换希沃桌面批注：</p>"
             "<ul>"
-            # "<li>「Ink Canvas Artistry (ICA)」任意版本</li>"
-            # "<li>「InkCanvasForClass (ICC)」任意版本</li>"
             "<li>「InkCanvasForClass Community Edition (ICC-CE)」1.7.18.7+</li>"
             "</ul>"
-            "您可以单击下方按钮前往 Github 下载。</p>"
+            "<p>您也可以安装以下任意软件，但体验欠佳，并且有已知的 bug：</p>"
+            "<ul>"
+            "<li>「Ink Canvas Artistry (ICA)」任意版本</li>"
+            "<li>「Ink Canvas Better (ICB)」任意版本</li>"
+            "<li>「InkCanvasForClass (ICC)」任意版本</li>"
+            "<li>「InkCanvasForClass Community Edition (ICC-CE)」小于 1.7.18.7 的版本</li>"
+            "</ul>"
+            "<p>不安装以上任意一款软件，您仍然可以使用本程序的「禁用希沃桌面批注」功能。</p>"
+            "<p>您可以单击下方按钮前往 Github 下载。</p>"
         )
-        # btn_ica_website = QPushButton("ICA Github")
-        # btn_icc_website = QPushButton("ICC Github")
+        btn_ica_website = QPushButton("ICA Github")
+        btn_icb_website = QPushButton("ICB Github")
+        btn_icc_website = QPushButton("ICC Github")
         btn_icc_ce_website = QPushButton("ICC-CE Github")
-        # msg_box.addButton(btn_ica_website, QMessageBox.AcceptRole) # type: ignore
-        # msg_box.addButton(btn_icc_website, QMessageBox.AcceptRole) # type: ignore
+        msg_box.addButton(btn_ica_website, QMessageBox.AcceptRole) # type: ignore
+        msg_box.addButton(btn_icb_website, QMessageBox.AcceptRole) # type: ignore
+        msg_box.addButton(btn_icc_website, QMessageBox.AcceptRole) # type: ignore
         msg_box.addButton(btn_icc_ce_website, QMessageBox.AcceptRole) # type: ignore
-        ok_btn = msg_box.addButton("OK", QMessageBox.AcceptRole) # type: ignore
+        ok_btn = msg_box.addButton("OK", QMessageBox.RejectRole) # type: ignore
         msg_box.setDefaultButton(ok_btn)
         
-        # btn_ica_website.clicked.connect(
-        #     lambda: webbrowser.open("https://github.com/InkCanvas/Ink-Canvas-Artistry")
-        # )
-        # btn_icc_website.clicked.connect(
-        #     lambda: webbrowser.open("https://github.com/InkCanvas/InkCanvasForClass")
-        # )
+        btn_ica_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/InkCanvas/Ink-Canvas-Artistry")
+        )
+        btn_icb_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/BaiYang2238/Ink-Canvas-Better")
+        ) 
+        btn_icc_website.clicked.connect(
+            lambda: webbrowser.open("https://github.com/InkCanvas/InkCanvasForClass")
+        )
         btn_icc_ce_website.clicked.connect(
             lambda: webbrowser.open("https://github.com/InkCanvasForClass/community")
         )
