@@ -318,6 +318,10 @@ def _extract_exe_from_command(cmd):
     return s[:space] if space != -1 else s
 
 
+DESKTOP_ANNOTATION_EXE = r"C:\Program Files (x86)\Seewo\MiniApps\DesktopAnnotation\DesktopAnnotation.exe"
+DESKTOP_ANNOTATION_BACKUP = r"C:\Program Files (x86)\Seewo\MiniApps\DesktopAnnotation\DesktopAnnotationBackup.exe"
+
+
 def create_and_run_bat(is_install):
     target_exe = os.path.join(get_base_dir(), "Annotation.exe")
     if is_install and not os.path.exists(target_exe):
@@ -328,6 +332,9 @@ def create_and_run_bat(is_install):
 
     if is_install:
         bat_content = f'''@echo off
+if not exist "{DESKTOP_ANNOTATION_BACKUP}" (
+    copy "{DESKTOP_ANNOTATION_EXE}" "{DESKTOP_ANNOTATION_BACKUP}" /Y
+)
 reg add "{reg_key}" /v Debugger /t REG_SZ /d "\\"{target_exe}\\"" /f
 if %errorlevel% neq 0 exit /b 1
 del "%~f0"
@@ -335,6 +342,9 @@ del "%~f0"
     else:
         bat_content = f'''@echo off
 reg delete "{reg_key}" /f
+if exist "{DESKTOP_ANNOTATION_BACKUP}" (
+    del "{DESKTOP_ANNOTATION_BACKUP}"
+)
 del "%~f0"
 '''
 

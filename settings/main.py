@@ -121,6 +121,7 @@ class SettingsWindow(QWidget):
         grp_common.setLayout(common_layout)
 
         self.radio_group = QButtonGroup(self)
+        self.radio_keep = QRadioButton("不替换（保持希沃原批注）")
         self.radio_none = QRadioButton("空程序（禁用希沃桌面批注）")
         self.radio_ica = QRadioButton("Ink Canvas Artistry (WIP)")
         self.radio_ica.setEnabled(False)
@@ -129,13 +130,14 @@ class SettingsWindow(QWidget):
         self.radio_icc = QRadioButton("InkCanvasForClass (WIP)")
         self.radio_icc.setEnabled(False)
         self.radio_icc_ce = QRadioButton("ICC-CE")
-        self.radio_group.addButton(self.radio_none, 0)
-        self.radio_group.addButton(self.radio_ica, 1)
-        self.radio_group.addButton(self.radio_icb, 2)
-        self.radio_group.addButton(self.radio_icc, 3)
-        self.radio_group.addButton(self.radio_icc_ce, 4)
+        self.radio_group.addButton(self.radio_keep, 0)
+        self.radio_group.addButton(self.radio_none, 1)
+        self.radio_group.addButton(self.radio_ica, 2)
+        self.radio_group.addButton(self.radio_icb, 3)
+        self.radio_group.addButton(self.radio_icc, 4)
+        self.radio_group.addButton(self.radio_icc_ce, 5)
         product = self.settings.get("ink_product", "none")
-        product_map = {"none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
         product_map.get(product, self.radio_none).setChecked(True)
         self.radio_group.idClicked.connect(self.on_product_changed)
 
@@ -166,6 +168,9 @@ class SettingsWindow(QWidget):
         self.lbl_icc_ce_issue.setCursor(Qt.PointingHandCursor) # type: ignore
         self.lbl_icc_ce_issue.linkActivated.connect(self._open_icc_troubleshoot)
 
+        row_keep = QHBoxLayout()
+        row_keep.addWidget(self.radio_keep)
+        row_keep.addStretch()
         row_none = QHBoxLayout()
         row_none.addWidget(self.radio_none)
         row_none.addStretch()
@@ -198,6 +203,7 @@ class SettingsWindow(QWidget):
         hijack_row.addWidget(self.btn_action)
         hijack_row.addStretch()
         replace_layout.addLayout(hijack_row)
+        replace_layout.addLayout(row_keep)
         replace_layout.addLayout(row_none)
         replace_layout.addLayout(row_ica)
         replace_layout.addLayout(row_icb)
@@ -276,10 +282,12 @@ class SettingsWindow(QWidget):
 
     def _sync_radio_enabled(self):
         is_hijacked = self._install_status == "installed"
+        self.radio_keep.setEnabled(is_hijacked)
         self.radio_none.setEnabled(is_hijacked)
         self.radio_icc_ce.setEnabled(is_hijacked)
         if not is_hijacked:
             self.radio_group.setExclusive(False)
+            self.radio_keep.setChecked(False)
             self.radio_none.setChecked(False)
             self.radio_ica.setChecked(False)
             self.radio_icc.setChecked(False)
@@ -362,8 +370,13 @@ class SettingsWindow(QWidget):
         current = self._get_install_status()
         self._refresh_attempts += 1
         if current != self._last_installed_state:
+            was_not_installed = self._last_installed_state != "installed"
             self._last_installed_state = current
             self.refresh_timer.stop()
+            if was_not_installed and current == "installed":
+                self.settings["ink_product"] = "keep"
+                save_settings(self.settings)
+                self.radio_keep.setChecked(True)
             self.update_install_buttons()
         elif self._refresh_attempts >= 10:
             self.refresh_timer.stop()
@@ -397,10 +410,10 @@ class SettingsWindow(QWidget):
         self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
 
         product = self.settings.get("ink_product", "none")
-        product_map = {"none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
         target = product_map.get(product, self.radio_none)
         self.radio_group.setExclusive(False)
-        for rb in (self.radio_none, self.radio_ica, self.radio_icb, self.radio_icc, self.radio_icc_ce):
+        for rb in (self.radio_keep, self.radio_none, self.radio_ica, self.radio_icb, self.radio_icc, self.radio_icc_ce):
             rb.setChecked(rb is target)
         self.radio_group.setExclusive(True)
 
@@ -421,7 +434,7 @@ class SettingsWindow(QWidget):
         self.update_install_buttons()
 
     def on_product_changed(self, btn_id):
-        product_map = {0: "none", 1: "ica", 2: "icb", 3: "icc", 4: "icc_ce"}
+        product_map = {0: "keep", 1: "none", 2: "ica", 3: "icb", 4: "icc", 5: "icc_ce"}
         self.settings["ink_product"] = product_map.get(btn_id, "none")
         save_settings(self.settings)
 

@@ -6,7 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
 from settings.update import check_for_update, check_for_update_async # type: ignore
-from unhide_annotation_apps import icc_ce, none
+from unhide_annotation_apps import icc_ce, none, original
 from utils import (
     load_settings,
     is_installed,
@@ -88,6 +88,9 @@ def main():
 
     elif settings.get("ink_product") == "icc_ce":
         exit_code = icc_ce.run()
+
+    elif settings.get("ink_product") == "keep":
+        exit_code = original.run()
 
     else:
         exit_code = 1
