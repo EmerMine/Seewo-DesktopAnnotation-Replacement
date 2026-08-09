@@ -294,7 +294,7 @@ class SettingsWindow(QWidget):
         elif self._icc_status == ICC_STATUS_NO_PROTOCOL:
             self.radio_icc_ce.setEnabled(False)
             self.lbl_icc_ce_hint.setText(
-                "未开启ICC-CE的URL功能，点击「解决问题」查看启用方法"
+                "未开启 ICC-CE「外部协议调用 (icc://)」功能，单击「解决问题」查看启用方法"
             )
             self.lbl_icc_ce_hint.setStyleSheet(hint_style)
             self.lbl_icc_ce_issue.show()
@@ -302,7 +302,7 @@ class SettingsWindow(QWidget):
                 self.radio_none.setChecked(True)
         elif self._icc_status == ICC_STATUS_BROKEN:
             self.lbl_icc_ce_hint.setText(
-                "ICC-CE URL协议已损坏，需重新在ICC-CE内启用"
+                "ICC-CE URL 协议已损坏，单击「解决问题」查看启用方法"
             )
             self.lbl_icc_ce_hint.setStyleSheet(hint_style)
             self.lbl_icc_ce_issue.show()

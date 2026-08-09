@@ -21,6 +21,8 @@ from utils import (
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
     check_icc_ce_url_protocol,
+    _icc_auto_pen_available,
+    ICC_MIN_AUTO_PEN_VERSION,
 )
 
 
@@ -156,13 +158,13 @@ class ICCURLTroubleshootWindow(QWidget):
                 bg_color = "#fff3cd"
                 text_color = "#856404"
             if status == ICC_STATUS_NO_PROTOCOL:
-                detail = "未检测到 icc:// 协议注册。请开启 ICC-CE 的 URL 协议功能。"
+                title = "未开启 ICC-CE「外部协议调用 (icc://)」功能"
             elif status == ICC_STATUS_BROKEN:
-                detail = "icc:// 协议已注册但可执行文件路径无效，需在 ICC-CE 内重新启用。"
+                title = "ICC-CE URL 协议已损坏"
             else:
-                detail = "icc:// 协议不可用。"
+                title = "ICC-CE URL 协议不可用"
             self.warning_text.setText(
-                "<b>ICC-CE URL 协议检测未通过</b><br>" + detail
+                f"<b>{title}</b><br>" + "「希沃批注替换」需要 ICC-CE URL 协议正常才能替换，查看下方说明以开启此功能。"
             )
 
         self.warning_frame.setStyleSheet(
@@ -212,12 +214,37 @@ class ICCCESettingsWindow(QWidget):
         self.chk_pen.setChecked(self.settings["auto_pen"])
         self.chk_pen.toggled.connect(self.on_pen_toggled)
 
+        pen_row = QHBoxLayout()
+        pen_row.addWidget(self.chk_pen)
+        pen_row.addStretch()
+
         grp_replace = QGroupBox("ICC-CE 替换设置")
         replace_layout = QVBoxLayout()
         replace_layout.addWidget(self.chk_show)
         replace_layout.addLayout(dur_layout)
         replace_layout.addLayout(hint_layout)
-        replace_layout.addWidget(self.chk_pen)
+        replace_layout.addLayout(pen_row)
+
+        pen_ok, pen_ver = _icc_auto_pen_available()
+        if not pen_ok:
+            self.chk_pen.setEnabled(False)
+            if self.chk_pen.isChecked():
+                self.chk_pen.setChecked(False)
+                self.settings["auto_pen"] = False
+                save_settings(self.settings)
+            ver_str = ".".join(str(v) for v in pen_ver) if pen_ver else "未知"
+            min_ver_str = ".".join(str(v) for v in ICC_MIN_AUTO_PEN_VERSION)
+            self.lbl_pen_hint = QLabel(
+                f"您安装的 ICC-CE 版本 {ver_str} < {min_ver_str}，此功能不可用。"
+            )
+            hint_color = "#b0b0b0" if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark else "gray" # type: ignore
+            self.lbl_pen_hint.setStyleSheet(f"color: {hint_color}; font-size: 9pt;")
+            pen_hint_layout = QHBoxLayout()
+            pen_hint_layout.addSpacerItem(QSpacerItem(indent, 0, QSizePolicy.Fixed, QSizePolicy.Minimum)) # type: ignore
+            pen_hint_layout.addWidget(self.lbl_pen_hint)
+            pen_hint_layout.addStretch()
+            replace_layout.addLayout(pen_hint_layout)
+
         grp_replace.setLayout(replace_layout)
 
         self.chk_hide = QCheckBox("收纳时彻底隐藏")
@@ -226,6 +253,8 @@ class ICCCESettingsWindow(QWidget):
 
         self.btn_show_toolbar = QPushButton("显示 ICC-CE 工具栏")
         self.btn_show_toolbar.clicked.connect(lambda: run_protocol("icc://unfold"))
+        if check_icc_ce_url_protocol() != ICC_STATUS_OK:
+            self.btn_show_toolbar.setEnabled(False)
 
         icc_layout = QVBoxLayout()
         icc_layout.addWidget(self.chk_hide)
