@@ -1,4 +1,4 @@
 from .main import SettingsWindow
-from .icc_ce import FAQWindow
+from .icc_ce import ICCURLTroubleshootWindow
 
-__all__ = ["SettingsWindow", "FAQWindow"]
+__all__ = ["SettingsWindow", "ICCURLTroubleshootWindow"]

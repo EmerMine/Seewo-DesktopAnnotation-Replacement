@@ -176,6 +176,63 @@ def _critical(text):
     msg.setWindowIcon(QIcon(get_icon_path()))
     msg.exec()
 
+ICC_PROTOCOL_KEY = r"icc"
+ICC_COMMAND_KEY = r"icc\shell\open\command"
+
+ICC_STATUS_OK = "ok"
+ICC_STATUS_NO_PROTOCOL = "no_protocol"
+ICC_STATUS_BROKEN = "broken"
+
+
+def check_icc_ce_url_protocol():
+    """检测 icc:// URL 协议是否已正确注册。
+
+    返回值：
+      - ICC_STATUS_OK          协议存在且命令路径有效
+      - ICC_STATUS_NO_PROTOCOL 注册表 HKEY_CLASSES_ROOT\\icc 不存在
+      - ICC_STATUS_BROKEN      协议存在但命令中的可执行文件路径无效
+    """
+    try:
+        winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, ICC_PROTOCOL_KEY)
+    except FileNotFoundError:
+        return ICC_STATUS_NO_PROTOCOL
+    except Exception:
+        return ICC_STATUS_NO_PROTOCOL
+
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, ICC_COMMAND_KEY)
+        cmd, _ = winreg.QueryValueEx(key, "")
+        winreg.CloseKey(key)
+    except FileNotFoundError:
+        return ICC_STATUS_BROKEN
+    except Exception:
+        return ICC_STATUS_BROKEN
+
+    exe_path = _extract_exe_from_command(cmd)
+    if exe_path and os.path.exists(exe_path):
+        return ICC_STATUS_OK
+    return ICC_STATUS_BROKEN
+
+
+def _extract_exe_from_command(cmd):
+    """从注册表命令字符串中提取可执行文件路径。
+
+    典型命令格式：
+      "C:\\Program Files\\ICC-CE\\ICC-CE.exe" "%1"
+      C:\\Path\\To\\App.exe %1
+    """
+    if not cmd:
+        return None
+    s = cmd.strip()
+    if s.startswith('"'):
+        end = s.find('"', 1)
+        if end == -1:
+            return None
+        return s[1:end]
+    space = s.find(' ')
+    return s[:space] if space != -1 else s
+
+
 def create_and_run_bat(is_install):
     target_exe = os.path.join(get_base_dir(), "Annotation.exe")
     if is_install and not os.path.exists(target_exe):

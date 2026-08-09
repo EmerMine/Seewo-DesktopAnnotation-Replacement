@@ -1,65 +1,180 @@
 import os
+import re
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QSpinBox, QGroupBox,
-    QSpacerItem, QSizePolicy, QStyle, QFrame,
+    QSpacerItem, QSizePolicy, QStyle, QFrame, QTextBrowser,
 )
 from utils import (
     get_icon_path,
+    get_data_dir,
     load_settings,
     save_settings,
     run_protocol,
     _is_win11,
+    ICC_STATUS_OK,
+    ICC_STATUS_NO_PROTOCOL,
+    ICC_STATUS_BROKEN,
+    check_icc_ce_url_protocol,
 )
 
 
-class FAQWindow(QWidget):
-    """常见问题独立窗口"""
+_HELP_DIR = os.path.join(
+    get_data_dir(), "resources", "help", "turn_on_icc_ce_url"
+)
+
+_HELP_DOC = """## 启用 ICC-CE URL 协议
+
+1. 通过 ICC-CE 工具栏，转到 ICC-CE 设置。
+
+![]({0}/1.png)
+
+2. 转到"通用 > 基本"，切换右侧开关以启用"外部协议调用(icc://)" 设置项。
+
+![]({0}/2.png)
+
+3. 单击本窗口"重新检测"按钮刷新状态，若一切无误，您可在"批注替换"分组框中选择"ICC-CE"选项。
+"""
+
+def _help_doc(is_dark):
+    return _HELP_DOC.format("dark" if is_dark else "light")
+
+
+_MD_IMAGE_RE = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
+
+
+def _rewrite_md_images(content, base_dir):
+    """将 markdown 图片语法改写为 <img> HTML，便于 QTextBrowser.setMarkdown 正确渲染。
+
+    QTextBrowser.setMarkdown 会丢弃原生 markdown 图片语法 `![](path)`，
+    但保留嵌入的 HTML <img> 标签。此函数在渲染前将图片转换为带绝对 file:// URL
+    的 <img> 标签，确保 Qt 能找到并显示图片。
+    """
+    def _replace(match):
+        alt, src = match.group(1), match.group(2)
+        if src.startswith(("http://", "https://", "file://", "data:")):
+            abs_url = src
+        else:
+            abs_path = os.path.normpath(os.path.join(base_dir, src))
+            abs_url = QUrl.fromLocalFile(abs_path).toString()
+        return f'<img src="{abs_url}" alt="{alt}" />'
+    return _MD_IMAGE_RE.sub(_replace, content)
+
+
+class ICCURLTroubleshootWindow(QWidget):
+    """ICC-CE URL 注册问题疑难解答窗口"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("FAQ - ICC-CE 设置 - 希沃批注替换")
+        self.setWindowTitle("ICC-CE URL 注册问题疑难解答 - 希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.setWindowFlags(Qt.Window) # type: ignore
 
-        layout = QVBoxLayout()
-        layout.setSpacing(10)
+        is_win11 = _is_win11()
+        self._warning_border_radius = "6px" if is_win11 else "0px"
 
-        lbl_q1 = QLabel("<b>Q: 弹出「需要使用新应用以打开此 icc 链接」窗口</b>")
-        lbl_a1 = QLabel("A: 请开启 ICC-CE「启用外部协议 (icc://)」设置项。\n"
-                        "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」设置项。")
-        lbl_a1.setWordWrap(True)
+        self.warning_frame = QFrame()
+        self.warning_text = QLabel()
+        self.warning_text.setTextFormat(Qt.RichText) # type: ignore
+        self.warning_text.setWordWrap(True)
+        self.icon_label = QLabel()
+        warning_layout = QHBoxLayout(self.warning_frame)
+        warning_layout.setContentsMargins(10, 8, 10, 8)
+        warning_layout.addWidget(self.icon_label, 0, Qt.AlignTop) # type: ignore
+        warning_layout.addSpacing(6)
+        warning_layout.addWidget(self.warning_text, 1)
 
-        lbl_q2 = QLabel("<b>Q: 切换到批注模式时，无法自动切换到笔</b>")
-        lbl_a2 = QLabel("A: 将 ICC-CE 升级到 1.7.18.7 及以上。")
-        lbl_a2.setWordWrap(True)
+        self.doc_browser = QTextBrowser()
+        self.doc_browser.setOpenExternalLinks(True)
+        self.doc_browser.setMinimumHeight(200)
+
+        QApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed) # type: ignore
+
+        btn_retest = QPushButton("重新检测")
+        btn_retest.clicked.connect(self._retest)
 
         btn_ok = QPushButton("OK")
         btn_ok.setFixedWidth(80)
         btn_ok.setDefault(True)
         btn_ok.clicked.connect(self.close)
+
         bottom_layout = QHBoxLayout()
+        bottom_layout.addWidget(btn_retest)
         bottom_layout.addStretch()
         bottom_layout.addWidget(btn_ok)
 
-        layout.addWidget(lbl_q1)
-        layout.addWidget(lbl_a1)
-        layout.addSpacing(10)
-        layout.addWidget(lbl_q2)
-        layout.addWidget(lbl_a2)
-        layout.addStretch()
+        layout = QVBoxLayout()
+        layout.setSpacing(10)
+        layout.addWidget(self.warning_frame)
+        layout.addWidget(self.doc_browser, 1)
         layout.addLayout(bottom_layout)
         self.setLayout(layout)
-        self.resize(420, 280)
+        self.resize(850, 700)
+
+        self._retest()
+        self._load_help_doc()
+
+    def _retest(self):
+        status = check_icc_ce_url_protocol()
+        self._apply_warning_style(status)
+
+    def _on_color_scheme_changed(self, _scheme):
+        self._apply_warning_style()
+        self._load_help_doc()
+
+    def _load_help_doc(self):
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        content = _rewrite_md_images(_help_doc(is_dark), _HELP_DIR)
+        self.doc_browser.setMarkdown(content)
+
+    def _apply_warning_style(self, status=None):
+        if status is None:
+            status = check_icc_ce_url_protocol()
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        if status == ICC_STATUS_OK:
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxInformation) # type: ignore
+            if is_dark:
+                bg_color = "#1e3a5f"
+                text_color = "#a8d4f0"
+            else:
+                bg_color = "#d1ecf1"
+                text_color = "#0c5460"
+            self.warning_text.setText(
+                "<b>ICC-CE URL 协议检测通过</b><br>"
+                "icc:// 协议已正确注册，可正常使用 ICC-CE 批注功能。"
+            )
+        else:
+            icon = self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning) # type: ignore
+            if is_dark:
+                bg_color = "#4a3f1f"
+                text_color = "#f7d87a"
+            else:
+                bg_color = "#fff3cd"
+                text_color = "#856404"
+            if status == ICC_STATUS_NO_PROTOCOL:
+                detail = "未检测到 icc:// 协议注册。请开启 ICC-CE 的 URL 协议功能。"
+            elif status == ICC_STATUS_BROKEN:
+                detail = "icc:// 协议已注册但可执行文件路径无效，需在 ICC-CE 内重新启用。"
+            else:
+                detail = "icc:// 协议不可用。"
+            self.warning_text.setText(
+                "<b>ICC-CE URL 协议检测未通过</b><br>" + detail
+            )
+
+        self.warning_frame.setStyleSheet(
+            f"QFrame {{ background-color: {bg_color}; border-radius: {self._warning_border_radius}; }}"
+        )
+        self.warning_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
+        self.icon_label.setPixmap(icon.pixmap(16, 16))
 
 
 class ICCCESettingsWindow(QWidget):
     """ICC-CE 专用设置窗口"""
-    def __init__(self):
+    def __init__(self, icc_protocol_status=None):
         super().__init__()
         self.setWindowTitle("ICC-CE 设置 - 希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
@@ -125,31 +240,7 @@ class ICCCESettingsWindow(QWidget):
         self.thorough_timer.setSingleShot(True)
         self.thorough_timer.timeout.connect(self.restore_hide_cb)
 
-        is_win11 = _is_win11()
-        border_radius = "6px" if is_win11 else "0px"
-
-        self.warning_frame = QFrame()
-        self.warning_text = QLabel(
-            "<b>请确保 ICC-CE 已开启「启用外部协议 (icc://)」设置项。</b><br>"
-            "路径：ICC-CE 设置 > 通用 > 基本 > 开启「启用外部协议 (icc://)」。"
-        )
-        self.warning_text.setTextFormat(Qt.RichText) # type: ignore
-        self.warning_text.setWordWrap(True)
-        self.icon_label = QLabel()
-        self.warning_layout = QHBoxLayout(self.warning_frame)
-        self.warning_layout.setContentsMargins(10, 8, 10, 8)
-        self.warning_layout.addWidget(self.icon_label, 0, Qt.AlignTop) # type: ignore
-        self.warning_layout.addSpacing(6)
-        self.warning_layout.addWidget(self.warning_text, 1)
-        self._warning_border_radius = border_radius
-        self._apply_warning_style()
-
-        QApplication.styleHints().colorSchemeChanged.connect(self._apply_warning_style) # type: ignore
-
         bottom_layout = QHBoxLayout()
-        self.btn_faq = QPushButton("FAQ")
-        self.btn_faq.clicked.connect(self.show_faq)
-        bottom_layout.addWidget(self.btn_faq)
         bottom_layout.addStretch()
         self.btn_close = QPushButton("关闭")
         self.btn_close.setFixedWidth(80)
@@ -157,7 +248,6 @@ class ICCCESettingsWindow(QWidget):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout = QVBoxLayout()
-        main_layout.addWidget(self.warning_frame)
         main_layout.addWidget(grp_replace)
         main_layout.addWidget(grp_icc)
         main_layout.addStretch()
@@ -165,31 +255,11 @@ class ICCCESettingsWindow(QWidget):
         self.setLayout(main_layout)
 
         self._init_ui = False
-        self.resize(380, 400)
+        self.resize(380, 360)
 
     def restore_hide_cb(self):
         self.chk_hide.setText("收纳时彻底隐藏")
         self.chk_hide.setEnabled(True)
-
-    def _apply_warning_style(self):
-        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
-        if is_dark:
-            bg_color = "#4a3f1f"
-            text_color = "#f7d87a"
-        else:
-            bg_color = "#fff3cd"
-            text_color = "#856404"
-        self.warning_frame.setStyleSheet(
-            f"QFrame {{ background-color: {bg_color}; border-radius: {self._warning_border_radius}; }}"
-        )
-        self.warning_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
-        self.icon_label.setPixmap(self.style().standardIcon( # type: ignore
-            QStyle.StandardPixmap.SP_MessageBoxWarning # type: ignore
-        ).pixmap(16, 16))
-
-    def show_faq(self):
-        self.faq_window = FAQWindow()
-        self.faq_window.show()
 
     def on_show_toggled(self, checked):
         self.settings["show_loading_window"] = checked

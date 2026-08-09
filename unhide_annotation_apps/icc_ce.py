@@ -7,9 +7,24 @@ from PySide6.QtGui import QFont, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
 from utils import (
     load_settings,
+    save_settings,
     run_protocol,
     get_icon_path,
+    check_icc_ce_url_protocol,
+    ICC_STATUS_OK,
+    ICC_STATUS_NO_PROTOCOL,
+    ICC_STATUS_BROKEN,
 )
+
+
+def _show_toast(text_fields):
+    try:
+        from windows_toasts import Toast, WindowsToaster
+        toast = Toast(text_fields=text_fields)
+        toaster = WindowsToaster("希沃批注替换")
+        toaster.show_toast(toast)
+    except Exception:
+        pass
 
 
 class LoadingWindow(QWidget):
@@ -28,7 +43,28 @@ class LoadingWindow(QWidget):
         self.setFixedSize(self.size())
 
 
+def _fallback_to_none(protocol_status):
+    if protocol_status == ICC_STATUS_NO_PROTOCOL:
+        reason = "未检测到ICC-CE的URL协议（icc://）注册"
+    elif protocol_status == ICC_STATUS_BROKEN:
+        reason = "ICC-CE的URL协议已损坏"
+    else:
+        reason = "ICC-CE的URL协议不可用"
+
+    settings = load_settings()
+    settings["ink_product"] = "none"
+    save_settings(settings)
+
+    _show_toast(["ICC-CE 不可用", f"{reason}，已自动切换为禁用希沃桌面批注模式。"])
+
+
 def run():
+    protocol_status = check_icc_ce_url_protocol()
+    if protocol_status != ICC_STATUS_OK:
+        _fallback_to_none(protocol_status)
+        from unhide_annotation_apps import none
+        return none.run()
+
     settings = load_settings()
     run_protocol("icc://unfold")
     if settings.get("auto_pen", False):

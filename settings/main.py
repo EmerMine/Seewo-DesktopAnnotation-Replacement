@@ -27,8 +27,12 @@ from utils import (
     create_shortcut,
     delete_shortcut,
     _is_win11,
+    check_icc_ce_url_protocol,
+    ICC_STATUS_OK,
+    ICC_STATUS_NO_PROTOCOL,
+    ICC_STATUS_BROKEN,
 )
-from .icc_ce import ICCCESettingsWindow
+from .icc_ce import ICCCESettingsWindow, ICCURLTroubleshootWindow
 from .none import NoneSettingsWindow
 from .update import check_for_update
 
@@ -118,17 +122,20 @@ class SettingsWindow(QWidget):
 
         self.radio_group = QButtonGroup(self)
         self.radio_none = QRadioButton("空程序（禁用希沃桌面批注）")
-        self.radio_ia = QRadioButton("Ink Canvas Artistry (WIP)")
-        self.radio_ia.setEnabled(False)
+        self.radio_ica = QRadioButton("Ink Canvas Artistry (WIP)")
+        self.radio_ica.setEnabled(False)
+        self.radio_icb = QRadioButton("Ink Canvas Better (WIP)")
+        self.radio_icb.setEnabled(False)
         self.radio_icc = QRadioButton("InkCanvasForClass (WIP)")
         self.radio_icc.setEnabled(False)
         self.radio_icc_ce = QRadioButton("ICC-CE")
         self.radio_group.addButton(self.radio_none, 0)
-        self.radio_group.addButton(self.radio_ia, 1)
-        self.radio_group.addButton(self.radio_icc, 2)
-        self.radio_group.addButton(self.radio_icc_ce, 3)
+        self.radio_group.addButton(self.radio_ica, 1)
+        self.radio_group.addButton(self.radio_icb, 2)
+        self.radio_group.addButton(self.radio_icc, 3)
+        self.radio_group.addButton(self.radio_icc_ce, 4)
         product = self.settings.get("ink_product", "none")
-        product_map = {"none": self.radio_none, "ica": self.radio_ia, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product_map = {"none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
         product_map.get(product, self.radio_none).setChecked(True)
         self.radio_group.idClicked.connect(self.on_product_changed)
 
@@ -136,26 +143,41 @@ class SettingsWindow(QWidget):
         link_color = "#7ab8ff" if is_dark else "#0066cc"
         link_style = f"<a href='#' style='color: {link_color}; text-decoration: none;'>设置</a>"
         self.lbl_set_none = QLabel(link_style)
-        self.lbl_set_ia = QLabel(link_style)
+        self.lbl_set_icb = QLabel(link_style)
+        self.lbl_set_ica = QLabel(link_style)
         self.lbl_set_icc = QLabel(link_style)
         self.lbl_set_icc_ce = QLabel(link_style)
-        for lbl in (self.lbl_set_none, self.lbl_set_ia, self.lbl_set_icc, self.lbl_set_icc_ce):
+        for lbl in (self.lbl_set_none, self.lbl_set_ica, self.lbl_set_icb, self.lbl_set_icc, self.lbl_set_icc_ce):
             lbl.setOpenExternalLinks(False)
             lbl.setCursor(Qt.PointingHandCursor) # type: ignore
 
+        self.lbl_set_icb = QLabel(link_style)
+        self.lbl_set_icb.setOpenExternalLinks(False)
+        self.lbl_set_icb.setCursor(Qt.PointingHandCursor) # type: ignore
+
         self.lbl_set_none.linkActivated.connect(lambda: self._open_product_settings("none"))
-        self.lbl_set_ia.linkActivated.connect(lambda: self._open_product_settings("ica"))
+        self.lbl_set_ica.linkActivated.connect(lambda: self._open_product_settings("ica"))
+        self.lbl_set_icb.linkActivated.connect(lambda: self._open_product_settings("icb"))
         self.lbl_set_icc.linkActivated.connect(lambda: self._open_product_settings("icc"))
         self.lbl_set_icc_ce.linkActivated.connect(lambda: self._open_product_settings("icc_ce"))
+
+        self.lbl_icc_ce_issue = QLabel(link_style.replace("设置", "解决问题"))
+        self.lbl_icc_ce_issue.setOpenExternalLinks(False)
+        self.lbl_icc_ce_issue.setCursor(Qt.PointingHandCursor) # type: ignore
+        self.lbl_icc_ce_issue.linkActivated.connect(self._open_icc_troubleshoot)
 
         row_none = QHBoxLayout()
         row_none.addWidget(self.radio_none)
         row_none.addStretch()
         row_none.addWidget(self.lbl_set_none)
-        row_ia = QHBoxLayout()
-        row_ia.addWidget(self.radio_ia)
-        row_ia.addStretch()
-        row_ia.addWidget(self.lbl_set_ia)
+        row_icb = QHBoxLayout()
+        row_icb.addWidget(self.radio_icb)
+        row_icb.addStretch()
+        row_icb.addWidget(self.lbl_set_icb)
+        row_ica = QHBoxLayout()
+        row_ica.addWidget(self.radio_ica)
+        row_ica.addStretch()
+        row_ica.addWidget(self.lbl_set_ica)
         row_icc = QHBoxLayout()
         row_icc.addWidget(self.radio_icc)
         row_icc.addStretch()
@@ -163,7 +185,12 @@ class SettingsWindow(QWidget):
         row_icc_ce = QHBoxLayout()
         row_icc_ce.addWidget(self.radio_icc_ce)
         row_icc_ce.addStretch()
+        row_icc_ce.addWidget(self.lbl_icc_ce_issue)
+        row_icc_ce.addSpacing(8)
         row_icc_ce.addWidget(self.lbl_set_icc_ce)
+
+        self.lbl_icc_ce_hint = QLabel()
+        self.lbl_icc_ce_hint.setWordWrap(True)
 
         grp_replace = QGroupBox("批注替换")
         replace_layout = QVBoxLayout()
@@ -172,9 +199,11 @@ class SettingsWindow(QWidget):
         hijack_row.addStretch()
         replace_layout.addLayout(hijack_row)
         replace_layout.addLayout(row_none)
-        replace_layout.addLayout(row_ia)
+        replace_layout.addLayout(row_ica)
+        replace_layout.addLayout(row_icb)
         replace_layout.addLayout(row_icc)
         replace_layout.addLayout(row_icc_ce)
+        replace_layout.addWidget(self.lbl_icc_ce_hint)
         grp_replace.setLayout(replace_layout)
 
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
@@ -252,10 +281,38 @@ class SettingsWindow(QWidget):
         if not is_hijacked:
             self.radio_group.setExclusive(False)
             self.radio_none.setChecked(False)
-            self.radio_ia.setChecked(False)
+            self.radio_ica.setChecked(False)
             self.radio_icc.setChecked(False)
             self.radio_icc_ce.setChecked(False)
             self.radio_group.setExclusive(True)
+
+        self._icc_status = check_icc_ce_url_protocol()
+        hint_style = "color: #cc8800; font-size: 8pt; margin-left: 18px;"
+        if self._icc_status == ICC_STATUS_OK:
+            self.lbl_icc_ce_hint.setText("")
+            self.lbl_icc_ce_issue.hide()
+        elif self._icc_status == ICC_STATUS_NO_PROTOCOL:
+            self.radio_icc_ce.setEnabled(False)
+            self.lbl_icc_ce_hint.setText(
+                "未开启ICC-CE的URL功能，点击「解决问题」查看启用方法"
+            )
+            self.lbl_icc_ce_hint.setStyleSheet(hint_style)
+            self.lbl_icc_ce_issue.show()
+            if self.radio_icc_ce.isChecked():
+                self.radio_none.setChecked(True)
+        elif self._icc_status == ICC_STATUS_BROKEN:
+            self.lbl_icc_ce_hint.setText(
+                "ICC-CE URL协议已损坏，需重新在ICC-CE内启用"
+            )
+            self.lbl_icc_ce_hint.setStyleSheet(hint_style)
+            self.lbl_icc_ce_issue.show()
+
+    def _sync_hint_label_style(self):
+        if not self.lbl_icc_ce_hint.text():
+            return
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        hint_color = "#f0b429" if is_dark else "#cc8800"
+        self.lbl_icc_ce_hint.setStyleSheet(f"color: {hint_color}; font-size: 8pt; margin-left: 18px;")
 
     def _warn_security_software(self):
         sw_name = check_security_software_running()
@@ -340,10 +397,10 @@ class SettingsWindow(QWidget):
         self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
 
         product = self.settings.get("ink_product", "none")
-        product_map = {"none": self.radio_none, "ica": self.radio_ia, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product_map = {"none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
         target = product_map.get(product, self.radio_none)
         self.radio_group.setExclusive(False)
-        for rb in (self.radio_none, self.radio_ia, self.radio_icc, self.radio_icc_ce):
+        for rb in (self.radio_none, self.radio_ica, self.radio_icb, self.radio_icc, self.radio_icc_ce):
             rb.setChecked(rb is target)
         self.radio_group.setExclusive(True)
 
@@ -364,7 +421,7 @@ class SettingsWindow(QWidget):
         self.update_install_buttons()
 
     def on_product_changed(self, btn_id):
-        product_map = {0: "none", 1: "ica", 2: "icc", 3: "icc_ce"}
+        product_map = {0: "none", 1: "ica", 2: "icb", 3: "icc", 4: "icc_ce"}
         self.settings["ink_product"] = product_map.get(btn_id, "none")
         save_settings(self.settings)
 
@@ -380,6 +437,10 @@ class SettingsWindow(QWidget):
                 self, "希沃批注替换",
                 f"{product} 设置暂未开放。"
             )
+
+    def _open_icc_troubleshoot(self):
+        self.icc_troubleshoot_window = ICCURLTroubleshootWindow()
+        self.icc_troubleshoot_window.show()
 
     def _show_about(self):
         msg_box = QMessageBox(QMessageBox.Information, "关于希沃批注替换", "", parent=self) # type: ignore
