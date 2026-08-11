@@ -3,7 +3,6 @@ import sys
 import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import winreg
 from PySide6.QtCore import Qt, QSize, QTimer
 from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
@@ -21,8 +20,14 @@ from utils import (
     save_settings,
     apply_style,
     apply_theme,
-    check_security_software_running,
-    create_and_run_bat,
+    install,
+    uninstall,
+    repair,
+    get_install_status,
+    get_install_diagnostics,
+    INSTALL_STATUS_INSTALLED,
+    INSTALL_STATUS_NOT_INSTALLED,
+    INSTALL_STATUS_CORRUPTED,
     shortcut_exists,
     create_shortcut,
     delete_shortcut,
@@ -52,6 +57,16 @@ class SettingsWindow(QWidget):
         if os.path.exists(shield_path):
             self.btn_action.setIcon(QIcon(shield_path))
         self.btn_action.clicked.connect(self.on_action_clicked)
+
+        self.lbl_view_reasons = QLabel(
+            '<a href="#diagnostics" style="color: #0078d4; text-decoration: none;">查看原因</a>'
+        )
+        self.lbl_view_reasons.setTextFormat(Qt.RichText) # type: ignore
+        self.lbl_view_reasons.setOpenExternalLinks(False)
+        self.lbl_view_reasons.linkActivated.connect(self._show_install_diagnostics)
+        self.lbl_view_reasons.hide()
+
+        self._last_failure_reasons = []
 
         self.chk_start_menu = QCheckBox("开始菜单快捷方式")
         self.chk_start_menu._original_text = "开始菜单快捷方式" # type: ignore
@@ -201,6 +216,7 @@ class SettingsWindow(QWidget):
         replace_layout = QVBoxLayout()
         hijack_row = QHBoxLayout()
         hijack_row.addWidget(self.btn_action)
+        hijack_row.addWidget(self.lbl_view_reasons)
         hijack_row.addStretch()
         replace_layout.addLayout(hijack_row)
         replace_layout.addLayout(row_keep)
@@ -241,7 +257,7 @@ class SettingsWindow(QWidget):
         self.setLayout(main_layout)
 
         self.refresh_timer = QTimer(self)
-        self.refresh_timer.setInterval(500)
+        self.refresh_timer.setInterval(1000)
         self.refresh_timer.timeout.connect(self.check_install_status)
         self._delay_install_check_timer = QTimer(self)
         self._delay_install_check_timer.setSingleShot(True)
@@ -257,35 +273,35 @@ class SettingsWindow(QWidget):
         self.resize(300, 380)
 
     def _get_install_status(self):
-        """检查注册表，返回 'installed' 或 'not_installed'"""
-        try:
-            key_path = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\DesktopAnnotation.exe"
-            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path)
-            debugger, _ = winreg.QueryValueEx(key, "Debugger")
-            winreg.CloseKey(key)
-            expected = os.path.join(get_base_dir(), "Annotation.exe")
-            if debugger.strip('"') == expected:
-                return "installed"
-        except Exception:
-            pass
-        return "not_installed"
+        return get_install_status()
 
     def update_install_buttons(self):
         status = self._get_install_status()
         self._install_status = status
         self.btn_action.setEnabled(True)
-        if status == "installed":
-            self.btn_action.setText("取消劫持希沃桌面批注")
+        if status == INSTALL_STATUS_INSTALLED:
+            self.btn_action.setText("卸载希沃桌面批注替换")
+        elif status == INSTALL_STATUS_CORRUPTED:
+            self.btn_action.setText("修复希沃桌面批注替换")
         else:
-            self.btn_action.setText("劫持希沃桌面批注")
+            self.btn_action.setText("安装希沃桌面批注替换")
+
+        show_link = (
+            status == INSTALL_STATUS_CORRUPTED
+            or bool(self._last_failure_reasons)
+        )
+        if show_link:
+            self.lbl_view_reasons.show()
+        else:
+            self.lbl_view_reasons.hide()
         self._sync_radio_enabled()
 
     def _sync_radio_enabled(self):
-        is_hijacked = self._install_status == "installed"
-        self.radio_keep.setEnabled(is_hijacked)
-        self.radio_none.setEnabled(is_hijacked)
-        self.radio_icc_ce.setEnabled(is_hijacked)
-        if not is_hijacked:
+        is_installed = self._install_status == INSTALL_STATUS_INSTALLED
+        self.radio_keep.setEnabled(is_installed)
+        self.radio_none.setEnabled(is_installed)
+        self.radio_icc_ce.setEnabled(is_installed)
+        if not is_installed:
             self.radio_group.setExclusive(False)
             self.radio_keep.setChecked(False)
             self.radio_none.setChecked(False)
@@ -322,24 +338,6 @@ class SettingsWindow(QWidget):
         hint_color = "#f0b429" if is_dark else "#cc8800"
         self.lbl_icc_ce_hint.setStyleSheet(f"color: {hint_color}; font-size: 8pt; margin-left: 18px;")
 
-    def _warn_security_software(self):
-        sw_name = check_security_software_running()
-        if not sw_name:
-            return True
-
-        msg_box = QMessageBox(QMessageBox.Warning, "希沃批注替换", "", parent=self) # type: ignore
-        msg_box.setTextFormat(Qt.RichText) # type: ignore
-        msg_box.setText(
-            f"<h3>请关闭「{sw_name}」</h3>"
-            "<p>该程序通过映像劫持替换「希沃桌面2.0+ 桌面批注」，这是系统敏感操作，"
-            "可能会被安全软件拦截导致安装失败。请退出安全软件后单击「继续」。</p>"
-        )
-        btn_continue = msg_box.addButton("继续", QMessageBox.AcceptRole) # type: ignore
-        btn_cancel = msg_box.addButton("取消", QMessageBox.RejectRole) # type: ignore
-        msg_box.setDefaultButton(btn_cancel)
-        msg_box.exec()
-        return msg_box.clickedButton() == btn_continue
-
     def _start_install_check(self):
         self.refresh_timer.start()
 
@@ -349,38 +347,104 @@ class SettingsWindow(QWidget):
         self.update_install_buttons()
 
     def on_action_clicked(self):
-        if not self._warn_security_software():
-            return
         self.refresh_timer.stop()
         self._delay_install_check_timer.stop()
         self._last_installed_state = self._install_status
         self._refresh_attempts = 0
-        is_installing = self._install_status != "installed"
+        is_uninstalling = self._install_status == INSTALL_STATUS_INSTALLED
+        is_repair = self._install_status == INSTALL_STATUS_CORRUPTED
         self.btn_action.setEnabled(False)
-        self.btn_action.setText("劫持中，请稍后……" if is_installing else "取消劫持中，请稍后……")
+        if is_uninstalling:
+            self.btn_action.setText("卸载中，请稍后……")
+        else:
+            self.btn_action.setText(
+                "修复中，请稍后……（正在下载安装包）"
+                if is_repair
+                else "安装中，请稍后……"
+            )
+        self.btn_action.repaint()
+        QApplication.processEvents()
         try:
-            create_and_run_bat(is_install=is_installing)
-        except Exception:
+            if is_uninstalling:
+                uninstall()
+                self._last_failure_reasons = []
+            elif is_repair:
+                ok, reasons = repair()
+                if not ok:
+                    self._last_failure_reasons = reasons
+                    self.btn_action.setEnabled(True)
+                    self.update_install_buttons()
+                    return
+                self._last_failure_reasons = []
+            else:
+                ok, reasons = install()
+                if not ok:
+                    self._last_failure_reasons = reasons
+                    self.btn_action.setEnabled(True)
+                    self.update_install_buttons()
+                    return
+                self._last_failure_reasons = []
+        except Exception as e:
+            self._last_failure_reasons = [f"执行异常：{e}"]
             self.btn_action.setEnabled(True)
             self.update_install_buttons()
             return
-        self._delay_install_check_timer.start(3000)
+        delay_ms = 8000 if is_repair else 3000
+        self._delay_install_check_timer.start(delay_ms)
 
     def check_install_status(self):
         current = self._get_install_status()
         self._refresh_attempts += 1
         if current != self._last_installed_state:
-            was_not_installed = self._last_installed_state != "installed"
+            was_not_installed = self._last_installed_state != INSTALL_STATUS_INSTALLED
             self._last_installed_state = current
             self.refresh_timer.stop()
-            if was_not_installed and current == "installed":
+            if was_not_installed and current == INSTALL_STATUS_INSTALLED:
                 self.settings["ink_product"] = "keep"
                 save_settings(self.settings)
                 self.radio_keep.setChecked(True)
             self.update_install_buttons()
-        elif self._refresh_attempts >= 10:
+        elif self._refresh_attempts >= 40:
             self.refresh_timer.stop()
             self.update_install_buttons()
+
+    def _show_install_diagnostics(self):
+        """弹出模态提示框，展示安装状态的逐项诊断结果。"""
+        if self._last_failure_reasons:
+            items = [
+                ('<span style="color: #d13438;">✗</span> ' + r)
+                for r in self._last_failure_reasons
+            ]
+        else:
+            items = []
+            for c in get_install_diagnostics():
+                icon = (
+                    '<span style="color: #107c10;">✓</span>' if c["ok"]
+                    else '<span style="color: #d13438;">✗</span>'
+                )
+                items.append(
+                    f"{icon} <b>{c['label']}</b>：{'通过' if c['ok'] else '未通过'}<br>"
+                    f'<span style="color: #666; font-size: 8pt;">{c["detail"]}</span>'
+                )
+
+        text = (
+            "<h3>安装失败原因</h3>"
+            "<p>以下是导致安装异常的条件判断结果：</p>"
+            + "<ul style='margin: 0; padding-left: 18px;'>"
+            + "".join(f"<li>{it}</li>" for it in items)
+            + "</ul>"
+        )
+
+        msg_box = QMessageBox(QMessageBox.Information, "安装失败原因", "", parent=self) # type: ignore
+        msg_box.setTextFormat(Qt.RichText) # type: ignore
+        msg_box.setText(text)
+        msg_box.setDetailedText(
+            "\n\n".join(
+                f"[{c['label']}] {'PASS' if c['ok'] else 'FAIL'}\n{c['detail']}"
+                for c in get_install_diagnostics()
+            )
+        )
+        msg_box.exec()
 
     def on_reset_clicked(self):
         msg_box = QMessageBox(QMessageBox.Warning, "希沃批注替换", "", parent=self) # type: ignore

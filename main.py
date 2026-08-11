@@ -9,7 +9,9 @@ from settings.update import check_for_update, check_for_update_async # type: ign
 from unhide_annotation_apps import icc_ce, none, original
 from utils import (
     load_settings,
-    is_installed,
+    get_install_status,
+    INSTALL_STATUS_INSTALLED,
+    INSTALL_STATUS_NOT_INSTALLED,
     get_icon_path,
     apply_style,
     apply_theme,
@@ -24,7 +26,7 @@ def main():
     apply_style(settings.get("style", "windowsvista"))
     apply_theme(settings.get("theme", "system"))
 
-    if not is_installed() and not args:
+    if get_install_status() == INSTALL_STATUS_NOT_INSTALLED and not args:
         msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "") # type: ignore
         msg_box.setWindowIcon(QIcon(get_icon_path()))
         msg_box.setTextFormat(Qt.RichText) # type: ignore

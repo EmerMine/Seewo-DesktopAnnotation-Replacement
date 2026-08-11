@@ -1,6 +1,8 @@
 altgraph==0.17.5
 packaging==26.3
 pefile==2024.8.26
+Pillow
+numpy
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6
 PySide6==6.11.1
