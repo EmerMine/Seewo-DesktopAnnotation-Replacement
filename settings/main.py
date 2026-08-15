@@ -280,11 +280,11 @@ class SettingsWindow(QWidget):
         self._install_status = status
         self.btn_action.setEnabled(True)
         if status == INSTALL_STATUS_INSTALLED:
-            self.btn_action.setText("卸载希沃桌面批注替换")
+            self.btn_action.setText("还原")
         elif status == INSTALL_STATUS_CORRUPTED:
-            self.btn_action.setText("修复希沃桌面批注替换")
+            self.btn_action.setText("修复")
         else:
-            self.btn_action.setText("安装希沃桌面批注替换")
+            self.btn_action.setText("替换")
 
         show_link = (
             status == INSTALL_STATUS_CORRUPTED
@@ -355,12 +355,12 @@ class SettingsWindow(QWidget):
         is_repair = self._install_status == INSTALL_STATUS_CORRUPTED
         self.btn_action.setEnabled(False)
         if is_uninstalling:
-            self.btn_action.setText("卸载中，请稍后……")
+            self.btn_action.setText("还原中……")
         else:
             self.btn_action.setText(
-                "修复中，请稍后……（正在下载安装包）"
+                "下载安装包中……"
                 if is_repair
-                else "安装中，请稍后……"
+                else "安装中……"
             )
         self.btn_action.repaint()
         QApplication.processEvents()
@@ -428,14 +428,14 @@ class SettingsWindow(QWidget):
                 )
 
         text = (
-            "<h3>安装失败原因</h3>"
-            "<p>以下是导致安装异常的条件判断结果：</p>"
+            "<h3>替换失败原因</h3>"
+            "<p>以下是导致替换异常的条件判断结果：</p>"
             + "<ul style='margin: 0; padding-left: 18px;'>"
             + "".join(f"<li>{it}</li>" for it in items)
             + "</ul>"
         )
 
-        msg_box = QMessageBox(QMessageBox.Information, "安装失败原因", "", parent=self) # type: ignore
+        msg_box = QMessageBox(QMessageBox.Information, "替换失败原因", "", parent=self) # type: ignore
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(text)
         msg_box.setDetailedText(
