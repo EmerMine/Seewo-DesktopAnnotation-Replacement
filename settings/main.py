@@ -31,7 +31,7 @@ from utils import (
     shortcut_exists,
     create_shortcut,
     delete_shortcut,
-    _is_win11,
+    # _is_win11,
     check_icc_ce_url_protocol,
     _is_debug,
     ICC_STATUS_OK,
@@ -78,21 +78,21 @@ class SettingsWindow(QWidget):
         self.chk_desktop.setChecked(shortcut_exists("desktop"))
         self.chk_desktop.toggled.connect(self.on_desktop_toggled)
 
-        is_win11 = _is_win11()
-        self._info_border_radius = "6px" if is_win11 else "0px"
-        self.info_frame = QFrame()
-        self.info_text = QLabel(
-            "可通过「.\\Annotation.exe -settings」命令打开本设置窗口。"
-        )
-        self.info_text.setWordWrap(True)
-        self.info_icon = QLabel()
-        info_layout = QHBoxLayout(self.info_frame)
-        info_layout.setContentsMargins(8, 6, 8, 6)
-        info_layout.addWidget(self.info_icon, 0, Qt.AlignTop) # type: ignore
-        info_layout.addSpacing(4)
-        info_layout.addWidget(self.info_text, 1)
-        self._apply_info_banner_style()
-        QApplication.styleHints().colorSchemeChanged.connect(self._apply_info_banner_style) # type: ignore
+        # is_win11 = _is_win11()
+        # self._info_border_radius = "6px" if is_win11 else "0px"
+        # self.info_frame = QFrame()
+        # self.info_text = QLabel(
+        #     "可通过「.\\Annotation.exe -settings」命令打开本设置窗口。"
+        # )
+        # self.info_text.setWordWrap(True)
+        # self.info_icon = QLabel()
+        # info_layout = QHBoxLayout(self.info_frame)
+        # info_layout.setContentsMargins(8, 6, 8, 6)
+        # info_layout.addWidget(self.info_icon, 0, Qt.AlignTop) # type: ignore
+        # info_layout.addSpacing(4)
+        # info_layout.addWidget(self.info_text, 1)
+        # self._apply_info_banner_style()
+        # QApplication.styleHints().colorSchemeChanged.connect(self._apply_info_banner_style) # type: ignore
 
         grp_shortcuts = QGroupBox("快捷方式")
         shortcuts_layout = QVBoxLayout()
@@ -249,7 +249,7 @@ class SettingsWindow(QWidget):
         bottom_layout.addWidget(self.btn_close)
 
         main_layout = QVBoxLayout()
-        main_layout.addWidget(self.info_frame)
+        # main_layout.addWidget(self.info_frame)
         main_layout.addWidget(grp_shortcuts)
         main_layout.addWidget(grp_common)
         main_layout.addWidget(grp_replace)
@@ -562,21 +562,21 @@ class SettingsWindow(QWidget):
     def _on_about_github(self):
         webbrowser.open("https://github.com/EmerMine/Seewo-DesktopAnnotation-Replacement")
 
-    def _apply_info_banner_style(self):
-        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
-        if is_dark:
-            bg_color = "#1e3a5f"
-            text_color = "#a8d4f0"
-        else:
-            bg_color = "#d1ecf1"
-            text_color = "#0c5460"
-        self.info_frame.setStyleSheet(
-            f"QFrame {{ background-color: {bg_color}; border-radius: {self._info_border_radius}; }}"
-        )
-        self.info_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
-        self.info_icon.setPixmap(self.style().standardIcon( # type: ignore
-            QStyle.StandardPixmap.SP_MessageBoxInformation # type: ignore
-        ).pixmap(14, 14))
+    # def _apply_info_banner_style(self):
+    #     is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+    #     if is_dark:
+    #         bg_color = "#1e3a5f"
+    #         text_color = "#a8d4f0"
+    #     else:
+    #         bg_color = "#d1ecf1"
+    #         text_color = "#0c5460"
+    #     self.info_frame.setStyleSheet(
+    #         f"QFrame {{ background-color: {bg_color}; border-radius: {self._info_border_radius}; }}"
+    #     )
+    #     self.info_text.setStyleSheet(f"color: {text_color}; font-size: 9pt;")
+    #     self.info_icon.setPixmap(self.style().standardIcon( # type: ignore
+    #         QStyle.StandardPixmap.SP_MessageBoxInformation # type: ignore
+    #     ).pixmap(14, 14))
 
     def _sync_theme_enabled(self):
         is_fusion = self.cmb_style.currentData() == "Fusion"
