@@ -309,7 +309,7 @@ class SettingsWindow(QWidget):
         text_label.setTextFormat(Qt.RichText) # type: ignore
         text_label.setWordWrap(True)
         text_label.setText(
-            "<h3>已更换希沃批注替换方法</h3>"
+            "<h3>映像劫持替换方法已不再受支持</h3>"
             "<p>检测到希沃桌面批注的映像劫持，这可能是旧版本希沃批注替换生成的。</p>"
             "<p>新版本已更换替换方法，保留映像劫持项可能引发问题。</p>"
             "<p>若该劫持项不是您手动创建的，请手动关闭安全软件后，单击「是」删除映像劫持项。</p>"
@@ -321,6 +321,14 @@ class SettingsWindow(QWidget):
         top_row = QHBoxLayout()
         top_row.addWidget(icon)
         top_row.addWidget(text_label, 1)
+        top_row.setContentsMargins(16, 16, 16, 16)
+
+        content_frame = QFrame()
+        content_frame.setLayout(top_row)
+        if self.settings.get("style") == "windowsvista":
+            content_frame.setStyleSheet(
+                "QFrame { background-color: #ffffff; }"
+            )
 
         btn_never = QPushButton("不再提示")
         btn_no = QPushButton("否")
@@ -331,13 +339,20 @@ class SettingsWindow(QWidget):
         bottom_row.addWidget(btn_never)
         bottom_row.addStretch(1)
         bottom_row.addWidget(btn_no)
+        bottom_row.addSpacing(6)
         bottom_row.addWidget(btn_yes)
+        bottom_row.setContentsMargins(12, 8, 12, 12)
+
+        separator = QFrame()
+        separator.setFixedHeight(1)
+        separator.setStyleSheet("QFrame { background-color: #dfdfdf; }")
 
         root = QVBoxLayout(dialog)
-        root.addLayout(top_row)
-        root.addSpacing(12)
+        root.addWidget(content_frame, 1)
+        root.addWidget(separator)
         root.addLayout(bottom_row)
-        root.setContentsMargins(16, 16, 16, 12)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
         result = {"action": "cancel"}
 
@@ -348,6 +363,7 @@ class SettingsWindow(QWidget):
         btn_yes.clicked.connect(lambda: result.__setitem__("action", "yes"))
         btn_yes.clicked.connect(dialog.accept)
 
+        QApplication.beep()
         dialog.exec()
 
         if result["action"] == "never_remind":
