@@ -1,7 +1,9 @@
 import sys
 import os
 import re
+import time
 import json
+import glob
 import hashlib
 import urllib.request
 import subprocess
@@ -75,9 +77,12 @@ DESKTOP_ANNOTATION_DIR = _da_cfg.get("dir", r"C:\Program Files (x86)\Seewo\MiniA
 _DESKTOP_ANNOTATION_EXE_NAME = _da_cfg.get("exe_name", "DesktopAnnotation.exe")
 _DESKTOP_ANNOTATION_BACKUP_NAME = _da_cfg.get("backup_name", "DesktopAnnotationBackup.exe")
 _DESKTOP_ANNOTATION_BAT_NAME = _da_cfg.get("bat_name", "Seewo-DeskopAnnotation-Replacement.bat")
+_DA_ORIGINAL_PREFIX = os.path.splitext(_DESKTOP_ANNOTATION_EXE_NAME)[0]
+_DA_BACKUP_PREFIX = os.path.splitext(_DESKTOP_ANNOTATION_BACKUP_NAME)[0]
 DESKTOP_ANNOTATION_EXE = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_EXE_NAME)
 DESKTOP_ANNOTATION_BACKUP = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_BACKUP_NAME)
 DESKTOP_ANNOTATION_BAT = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_BAT_NAME)
+_DA_LOG_FILE = os.path.join(tempfile.gettempdir(), "sar_desktop_annotation.log")
 
 _apps_cfg = _config.get("apps", {})
 _APPS_EXE_NAME = _apps_cfg.get("exe_name", "DesktopAnnotation.exe")
@@ -91,6 +96,44 @@ _install_cfg = _config.get("install_status", {})
 INSTALL_STATUS_INSTALLED = _install_cfg.get("installed", "installed")
 INSTALL_STATUS_NOT_INSTALLED = _install_cfg.get("not_installed", "not_installed")
 INSTALL_STATUS_CORRUPTED = _install_cfg.get("corrupted", "corrupted")
+
+
+_DEBUG_FORCED = False
+
+
+def set_debug_mode(enabled: bool):
+    """强制启用或禁用调试模式（由命令行参数 ``-debug`` 调用）。"""
+    global _DEBUG_FORCED
+    _DEBUG_FORCED = bool(enabled)
+
+
+def _is_debug():
+    """检测当前是否处于调试模式。
+
+    触发条件（任一满足即为 True）：
+      - 调试器已附加（pdb / pydevd / VS Code 调试器等，``sys.gettrace()`` 非 None）
+      - 通过 ``set_debug_mode(True)`` 强制启用（例如 ``-debug`` 命令行参数）
+    """
+    return sys.gettrace() is not None or _DEBUG_FORCED
+
+
+def _debug_log(msg):
+    """调试日志输出：仅在调试模式下带时间戳输出到 stderr。"""
+    if _is_debug():
+        ts = time.strftime("%H:%M:%S")
+        print(f"[{ts}] [DEBUG] {msg}", file=sys.stderr, flush=True)
+
+
+def _decorate_bat(bat_content):
+    """为调试模式下的 bat 内容添加 pause，覆盖所有退出路径。
+
+    - 在每个 ``exit /b N`` 前插入 ``pause``（覆盖 install/uninstall 的错误退出路径）
+    - 在脚本末尾的 ``endlocal`` 后追加 ``pause``（覆盖所有正常路径和 repair 的 goto :cleanup 路径）
+    """
+    import re as _re
+    bat_content = _re.sub(r'(\r?\n)(\s*)exit /b (\d+)', r'\1\2pause\nexit /b \3', bat_content)
+    bat_content = _re.sub(r'\nendlocal\s*$', '\nendlocal\npause', bat_content)
+    return bat_content
 
 
 def get_base_dir():
@@ -125,6 +168,53 @@ def get_icon_path():
 def get_shield_icon_path():
     filename = "win11.ico" if _is_win11() else "win10.ico"
     return os.path.join(get_data_dir(), "resources", "admin", filename)
+
+
+def _log(msg, level="info"):
+    try:
+        log_path = os.path.join(get_data_dir(), "sar.log")
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] [{level.upper()}] {msg}\n")
+    except Exception:
+        pass
+
+
+def _scan_original_da_files(dir_path):
+    """返回目录中所有以 DesktopAnnotation 开头但不以 DesktopAnnotationBackup 开头的文件路径。"""
+    if not os.path.isdir(dir_path):
+        return []
+    result = []
+    try:
+        for name in os.listdir(dir_path):
+            if name.startswith(_DA_ORIGINAL_PREFIX) and not name.startswith(_DA_BACKUP_PREFIX):
+                result.append(os.path.join(dir_path, name))
+    except OSError:
+        pass
+    return result
+
+
+def _scan_backup_da_files(dir_path):
+    """返回目录中所有以 DesktopAnnotationBackup 开头的文件路径。"""
+    if not os.path.isdir(dir_path):
+        return []
+    result = []
+    try:
+        for name in os.listdir(dir_path):
+            if name.startswith(_DA_BACKUP_PREFIX):
+                result.append(os.path.join(dir_path, name))
+    except OSError:
+        pass
+    return result
+
+
+def _find_primary_exe(paths):
+    """从文件路径列表中找到 .exe 文件，找不到返回 None。"""
+    for p in paths:
+        if p.lower().endswith(".exe"):
+            return p
+    return None
 
 
 _THEME_TO_SCHEME = {
@@ -410,20 +500,17 @@ def _get_latest_version_key(url_map):
 def get_desktop_annotation_version():
     """读取希沃桌面批注 exe 的版本号。
 
-    优先尝试 DESKTOP_ANNOTATION_BACKUP，若不存在或读取失败再尝试 DESKTOP_ANNOTATION_EXE。
+    优先扫描 DESKTOP_ANNOTATION_DIR 中所有 DesktopAnnotationBackup*.exe；
+    若不存在或读取失败，再扫描 DesktopAnnotation*.exe（排除 Backup*）。
     返回 (version_tuple, source_path)；若均读取失败则返回 (None, None)。
     """
-    candidates = []
-    if DESKTOP_ANNOTATION_BACKUP not in candidates:
-        candidates.append(DESKTOP_ANNOTATION_BACKUP)
-    if DESKTOP_ANNOTATION_EXE not in candidates:
-        candidates.append(DESKTOP_ANNOTATION_EXE)
-    for path in candidates:
-        if not os.path.exists(path):
-            continue
-        ver = get_file_version(path)
-        if ver is not None:
-            return ver, path
+    for paths in (_scan_backup_da_files(DESKTOP_ANNOTATION_DIR),
+                  _scan_original_da_files(DESKTOP_ANNOTATION_DIR)):
+        primary = _find_primary_exe(paths)
+        if primary and os.path.exists(primary):
+            ver = get_file_version(primary)
+            if ver is not None:
+                return ver, primary
     return None, None
 
 
@@ -552,65 +639,201 @@ def _split_command_paths(cmd):
 
 
 def _build_install_bat():
-    """生成安装阶段的临时 bat（需管理员权限运行）。"""
+    """生成安装阶段的临时 bat（需管理员权限运行）。
+
+    遍历目标目录中所有以 DesktopAnnotation 开头但不以 Backup 结尾的文件，
+    将 "DesktopAnnotation" 前缀替换为 "DesktopAnnotationBackup" 完成批量备份。
+    """
     entry = _get_entry_command()
     return f'''@echo off
-setlocal
+setlocal enabledelayedexpansion
 set "TARGET_DIR={DESKTOP_ANNOTATION_DIR}"
 set "ORIG_EXE={DESKTOP_ANNOTATION_EXE}"
-set "BACKUP_EXE={DESKTOP_ANNOTATION_BACKUP}"
 set "LOCAL_EXE={LOCAL_APPS_EXE}"
 set "BAT_FILE={DESKTOP_ANNOTATION_BAT}"
+set "LOG_FILE={_DA_LOG_FILE}"
+set "PREFIX=DesktopAnnotation"
+set "BACKUP_PREFIX=DesktopAnnotationBackup"
 
-taskkill /f /im DesktopAnnotation.exe /t >nul 2>&1
-if exist "%BACKUP_EXE%" (
-    echo already backed up
-) else (
-    ren "%ORIG_EXE%" "DesktopAnnotationBackup.exe"
-    if errorlevel 1 (
-        echo FAILED_RENAME
-        exit /b 1
+echo [%date% %time%] [INSTALL] [START] target=!TARGET_DIR! >> "!LOG_FILE!"
+
+rem --- 1. 杀掉目标目录下所有 exe 进程 ---
+echo [%date% %time%] [KILL] [START] enumerate exes >> "!LOG_FILE!"
+for %%F in ("!TARGET_DIR!\\*.exe") do (
+    if exist "%%F" (
+        echo [%date% %time%] [KILL] [OK] %%~nxF >> "!LOG_FILE!"
+        taskkill /f /im "%%~nxF" /t >nul 2>&1
     )
 )
-copy /y "%LOCAL_EXE%" "%ORIG_EXE%"
+
+rem --- 2. 批量重命名 DesktopAnnotation* -> DesktopAnnotationBackup* ---
+echo [%date% %time%] [RENAME] [START] enumerate !PREFIX!* >> "!LOG_FILE!"
+set "RENAME_COUNT=0"
+for %%F in ("!TARGET_DIR!\\!PREFIX!*") do (
+    if exist "%%F" if not exist "%%F\\\" (
+        set "NAME=%%~nxF"
+        set "HEAD=!NAME:~0,26!"
+        if /i not "!HEAD!"=="!BACKUP_PREFIX!" (
+            set "NEWNAME=!NAME:DesktopAnnotation=DesktopAnnotationBackup!"
+            if exist "!TARGET_DIR!\\!NEWNAME!" (
+                del /f /q "!TARGET_DIR!\\!NEWNAME!"
+                if errorlevel 1 (
+                    echo [%date% %time%] [RENAME] [FAILED] del old backup !NEWNAME! >> "!LOG_FILE!"
+                    echo FAILED_DEL_OLD_BACKUP
+                    exit /b 1
+                )
+                echo [%date% %time%] [RENAME] [INFO] deleted old backup !NEWNAME! >> "!LOG_FILE!"
+            )
+            ren "%%F" "!NEWNAME!"
+            if errorlevel 1 (
+                echo [%date% %time%] [RENAME] [FAILED] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+                echo FAILED_RENAME
+                exit /b 1
+            )
+            set /a RENAME_COUNT+=1
+            echo [%date% %time%] [RENAME] [OK] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+        ) else (
+            echo [%date% %time%] [RENAME] [SKIP] %%F already backed up >> "!LOG_FILE!"
+        )
+    )
+)
+echo [%date% %time%] [RENAME] [DONE] count=!RENAME_COUNT! >> "!LOG_FILE!"
+
+rem --- 3. 复制替换 exe ---
+echo [%date% %time%] [COPY] [START] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
+copy /y "!LOCAL_EXE!" "!ORIG_EXE!"
 if errorlevel 1 (
+    echo [%date% %time%] [COPY] [FAILED] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
     echo FAILED_COPY
     exit /b 1
 )
-> "%BAT_FILE%" echo @echo off
->> "%BAT_FILE%" echo {entry}
+echo [%date% %time%] [COPY] [OK] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
+
+rem --- 4. 写入启动脚本 ---
+echo [%date% %time%] [WRITE] [START] !BAT_FILE! >> "!LOG_FILE!"
+> "!BAT_FILE!" echo @echo off
+>> "!BAT_FILE!" echo {entry}
+if errorlevel 1 (
+    echo [%date% %time%] [WRITE] [FAILED] !BAT_FILE! >> "!LOG_FILE!"
+    echo FAILED_WRITE_BAT
+    exit /b 1
+)
+echo [%date% %time%] [WRITE] [OK] !BAT_FILE! >> "!LOG_FILE!"
+
+echo [%date% %time%] [INSTALL] [DONE] >> "!LOG_FILE!"
 endlocal
 '''
 
 
 def _build_uninstall_bat():
-    """生成卸载阶段的临时 bat（需管理员权限运行）。"""
-    return f'''@echo off
-setlocal
-set "ORIG_EXE={DESKTOP_ANNOTATION_EXE}"
-set "BACKUP_EXE={DESKTOP_ANNOTATION_BACKUP}"
-set "BAT_FILE={DESKTOP_ANNOTATION_BAT}"
+    """生成卸载阶段的临时 bat（需管理员权限运行）。
 
-taskkill /f /im DesktopAnnotationBackup.exe /t >nul 2>&1
-if not exist "%BACKUP_EXE%" (
-    echo NO_BACKUP
+    遍历目标目录中所有以 DesktopAnnotationBackup 开头的文件，
+    将 "DesktopAnnotationBackup" 前缀还原为 "DesktopAnnotation"。
+    """
+    return f'''@echo off
+setlocal enabledelayedexpansion
+set "TARGET_DIR={DESKTOP_ANNOTATION_DIR}"
+set "ORIG_EXE={DESKTOP_ANNOTATION_EXE}"
+set "BAT_FILE={DESKTOP_ANNOTATION_BAT}"
+set "LOG_FILE={_DA_LOG_FILE}"
+set "PREFIX=DesktopAnnotation"
+set "BACKUP_PREFIX=DesktopAnnotationBackup"
+
+echo [%date% %time%] [UNINSTALL] [START] target=!TARGET_DIR! >> "!LOG_FILE!"
+
+rem --- 1. 杀掉所有 Backup 相关进程 ---
+echo [%date% %time%] [KILL] [START] enumerate backup exes >> "!LOG_FILE!"
+for %%F in ("!TARGET_DIR!\\DesktopAnnotationBackup*.exe") do (
+    if exist "%%F" (
+        echo [%date% %time%] [KILL] [OK] %%~nxF >> "!LOG_FILE!"
+        taskkill /f /im "%%~nxF" /t >nul 2>&1
+    )
+)
+
+rem --- 2. 检查是否有备份文件 ---
+set "HAS_BACKUP="
+for %%F in ("!TARGET_DIR!\\DesktopAnnotationBackup*") do (
+    if exist "%%F" if not exist "%%F\\\" set "HAS_BACKUP=1"
+)
+
+if not defined HAS_BACKUP (
+    echo [%date% %time%] [CHECK] [INFO] no backup files found, nothing to restore >> "!LOG_FILE!"
+    echo [%date% %time%] [UNINSTALL] [DONE] >> "!LOG_FILE!"
     exit /b 0
 )
-if exist "%ORIG_EXE%" del /f /q "%ORIG_EXE%"
-ren "%BACKUP_EXE%" "DesktopAnnotation.exe"
-if exist "%BAT_FILE%" del /f /q "%BAT_FILE%"
+echo [%date% %time%] [CHECK] [OK] backup files exist >> "!LOG_FILE!"
+
+rem --- 3. 删除我们替换的 exe ---
+if exist "!ORIG_EXE!" (
+    echo [%date% %time%] [DELETE] [START] !ORIG_EXE! >> "!LOG_FILE!"
+    del /f /q "!ORIG_EXE!"
+    if errorlevel 1 (
+        echo [%date% %time%] [DELETE] [FAILED] !ORIG_EXE! >> "!LOG_FILE!"
+        echo FAILED_DEL_ORIG
+        exit /b 1
+    )
+    echo [%date% %time%] [DELETE] [OK] !ORIG_EXE! >> "!LOG_FILE!"
+) else (
+    echo [%date% %time%] [DELETE] [SKIP] !ORIG_EXE! not found >> "!LOG_FILE!"
+)
+
+rem --- 4. 批量还原 DesktopAnnotationBackup* -> DesktopAnnotation* ---
+echo [%date% %time%] [RESTORE] [START] enumerate !BACKUP_PREFIX!* >> "!LOG_FILE!"
+set "RESTORE_COUNT=0"
+for %%F in ("!TARGET_DIR!\\!BACKUP_PREFIX!*") do (
+    if exist "%%F" if not exist "%%F\\\" (
+        set "NAME=%%~nxF"
+        set "NEWNAME=!NAME:DesktopAnnotationBackup=DesktopAnnotation!"
+        ren "%%F" "!NEWNAME!"
+        if errorlevel 1 (
+            echo [%date% %time%] [RESTORE] [FAILED] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+            echo FAILED_RESTORE
+            exit /b 1
+        )
+        set /a RESTORE_COUNT+=1
+        echo [%date% %time%] [RESTORE] [OK] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+    )
+)
+echo [%date% %time%] [RESTORE] [DONE] count=!RESTORE_COUNT! >> "!LOG_FILE!"
+
+rem --- 5. 清理启动脚本 ---
+if exist "!BAT_FILE!" (
+    echo [%date% %time%] [DELETE] [START] !BAT_FILE! >> "!LOG_FILE!"
+    del /f /q "!BAT_FILE!"
+    if errorlevel 1 (
+        echo [%date% %time%] [DELETE] [FAILED] !BAT_FILE! >> "!LOG_FILE!"
+        echo FAILED_DEL_BAT
+        exit /b 1
+    )
+    echo [%date% %time%] [DELETE] [OK] !BAT_FILE! >> "!LOG_FILE!"
+) else (
+    echo [%date% %time%] [DELETE] [SKIP] !BAT_FILE! not found >> "!LOG_FILE!"
+)
+
+echo [%date% %time%] [UNINSTALL] [DONE] >> "!LOG_FILE!"
 endlocal
 '''
 
 
 def _run_elevated(bat_content):
-    """写入临时 bat 并以管理员权限运行（ShellExecuteW runas）。"""
+    """写入临时 bat 并以管理员权限运行（ShellExecuteW runas）。
+
+    调试模式下会显示控制台窗口（SW_SHOWNORMAL）并在所有退出路径前插入 pause。
+    """
+    is_debug = _is_debug()
+    _debug_log(f"_run_elevated called, debug={is_debug}, bat_len={len(bat_content)}")
+    if is_debug:
+        bat_content = _decorate_bat(bat_content)
+        _debug_log(f"bat decorated with pause, new_len={len(bat_content)}")
     fd, bat_path = tempfile.mkstemp(suffix=".bat", prefix="sar_")
     try:
         with os.fdopen(fd, "w", encoding="mbcs") as f:
             f.write(bat_content)
+        show_cmd = 1 if is_debug else 0
+        _debug_log(f"bat written to {bat_path}, show_cmd={show_cmd}, launching...")
         ctypes.windll.shell32.ShellExecuteW(
-            None, "runas", bat_path, "", None, 0
+            None, "runas", bat_path, "", None, show_cmd
         )
     except Exception as e:
         _critical(f"执行失败：{e}")
@@ -636,7 +859,7 @@ def get_install_diagnostics():
         ),
     })
 
-    # 2. 目标 exe 存在性
+    # 2. 目标 exe 存在性（DesktopAnnotation.exe 是替换入口）
     has_orig = os.path.exists(DESKTOP_ANNOTATION_EXE)
     checks.append({
         "label": "目标程序存在",
@@ -655,15 +878,32 @@ def get_install_diagnostics():
         ),
     })
 
-    # 4. 备份文件
-    has_backup = os.path.exists(DESKTOP_ANNOTATION_BACKUP)
+    # 4. 原始备份文件组（所有 DesktopAnnotationBackup* 文件）
+    backup_files = _scan_backup_da_files(DESKTOP_ANNOTATION_DIR)
+    backup_exe = _find_primary_exe(backup_files)
     checks.append({
         "label": "原始程序备份",
-        "ok": has_backup,
-        "detail": DESKTOP_ANNOTATION_BACKUP,
+        "ok": bool(backup_files),
+        "detail": (
+            f"共 {len(backup_files)} 个文件：\n"
+            + "\n".join(f"  {os.path.basename(p)}" for p in backup_files)
+            if backup_files else "未发现备份文件"
+        ),
     })
 
-    # 5. 入口 bat 文件
+    # 5. 原始未备份文件组（信息性展示，不参与健康判定）
+    original_files = _scan_original_da_files(DESKTOP_ANNOTATION_DIR)
+    checks.append({
+        "label": "原始未备份文件",
+        "ok": True,
+        "detail": (
+            f"共 {len(original_files)} 个文件：\n"
+            + "\n".join(f"  {os.path.basename(p)}" for p in original_files)
+            if original_files else "无（安装后原始文件已被重命名为 DesktopAnnotationBackup*）"
+        ),
+    })
+
+    # 6. 入口 bat 文件
     has_bat = os.path.exists(DESKTOP_ANNOTATION_BAT)
     checks.append({
         "label": "启动脚本",
@@ -671,7 +911,7 @@ def get_install_diagnostics():
         "detail": DESKTOP_ANNOTATION_BAT,
     })
 
-    # 6. bat 入口路径有效性
+    # 7. bat 入口路径有效性
     entry_paths = _parse_bat_entry(DESKTOP_ANNOTATION_BAT) if has_bat else []
     all_entry_exist = bool(entry_paths) and all(os.path.exists(p) for p in entry_paths)
     checks.append({
@@ -692,30 +932,41 @@ def install():
     返回 (ok, failure_reasons)。ok 为 True 时 failure_reasons 为空列表；
     ok 为 False 时 failure_reasons 是字符串列表（每项描述一项失败检查）。
     """
+    _debug_log("install() called")
+    _log("INSTALL invoked")
     reasons = []
 
     if not os.path.exists(LOCAL_APPS_EXE):
         reasons.append(f"未找到安装源：{LOCAL_APPS_EXE}")
+        _log(f"INSTALL failed: source not found {LOCAL_APPS_EXE}", "error")
     else:
         actual = sha256_file(LOCAL_APPS_EXE)
         if actual != APPS_EXE_SHA256:
             reasons.append(
                 f"安装源哈希不匹配：实际 {actual}，期望 {APPS_EXE_SHA256}"
             )
+            _log(f"INSTALL failed: hash mismatch actual={actual} expected={APPS_EXE_SHA256}", "error")
 
     if reasons:
         _critical(reasons[0])
         return False, reasons
 
+    _log(f"INSTALL validation passed, killing processes for {DESKTOP_ANNOTATION_EXE}")
     kill_process_by_path(DESKTOP_ANNOTATION_EXE)
+    kill_process_by_path(DESKTOP_ANNOTATION_BACKUP)
     _run_elevated(_build_install_bat())
+    _log("INSTALL bat dispatched (elevated)")
     return True, []
 
 
 def uninstall():
     """卸载：杀进程 → 恢复原文件 → 清理 bat。"""
+    _debug_log("uninstall() called")
+    _log("UNINSTALL invoked")
     kill_process_by_path(DESKTOP_ANNOTATION_BACKUP)
+    kill_process_by_path(DESKTOP_ANNOTATION_EXE)
     _run_elevated(_build_uninstall_bat())
+    _log("UNINSTALL bat dispatched (elevated)")
     return True
 
 
@@ -772,59 +1023,128 @@ def _download_with_fallback(urls, dest_path):
 
 
 def _build_repair_bat(installer_exe, cleanup_dir):
-    """生成修复流程的管理员 bat：清理 → 运行原始安装包 → 标准安装我们的 exe。"""
+    """生成修复流程的管理员 bat：清理 → 运行原始安装包 → 批量备份 → 替换 → 写启动脚本。"""
     entry = _get_entry_command()
     return f'''@echo off
-setlocal
+setlocal enabledelayedexpansion
 set "TARGET_DIR={DESKTOP_ANNOTATION_DIR}"
 set "ORIG_EXE={DESKTOP_ANNOTATION_EXE}"
-set "BACKUP_EXE={DESKTOP_ANNOTATION_BACKUP}"
 set "LOCAL_EXE={LOCAL_APPS_EXE}"
 set "BAT_FILE={DESKTOP_ANNOTATION_BAT}"
 set "INSTALLER={installer_exe}"
 set "CLEANUP_DIR={cleanup_dir}"
+set "LOG_FILE={_DA_LOG_FILE}"
+set "PREFIX=DesktopAnnotation"
+set "BACKUP_PREFIX=DesktopAnnotationBackup"
 
-rem --- 1. 杀掉所有相关进程 ---
-taskkill /f /im DesktopAnnotation.exe /t >nul 2>&1
-taskkill /f /im DesktopAnnotationBackup.exe /t >nul 2>&1
+echo [%date% %time%] [REPAIR] [START] target=!TARGET_DIR! installer=!INSTALLER! >> "!LOG_FILE!"
+
+rem --- 1. 杀掉目标目录下所有 exe 进程 ---
+echo [%date% %time%] [KILL] [START] enumerate exes >> "!LOG_FILE!"
+for %%F in ("!TARGET_DIR!\\*.exe") do (
+    if exist "%%F" (
+        echo [%date% %time%] [KILL] [OK] %%~nxF >> "!LOG_FILE!"
+        taskkill /f /im "%%~nxF" /t >nul 2>&1
+    )
+)
 
 rem --- 2. 清理目标目录 ---
-if exist "%TARGET_DIR%\\Uninstall.exe" (
-    cd /d "%TARGET_DIR%"
+if exist "!TARGET_DIR!\\Uninstall.exe" (
+    echo [%date% %time%] [CLEAN] [START] run Uninstall.exe /S >> "!LOG_FILE!"
+    cd /d "!TARGET_DIR!"
     call Uninstall.exe /S
+    echo [%date% %time%] [CLEAN] [OK] Uninstall.exe exit=!errorlevel! >> "!LOG_FILE!"
+    cd /d "%TEMP%"
 ) else (
-    rd /s /q "%TARGET_DIR%"
+    echo [%date% %time%] [CLEAN] [START] rd /s /q !TARGET_DIR! >> "!LOG_FILE!"
+    rd /s /q "!TARGET_DIR!"
+    echo [%date% %time%] [CLEAN] [OK] rd exit=!errorlevel! >> "!LOG_FILE!"
 )
 
 rem --- 3. 运行全新安装包（静默） ---
-start /wait "" "%INSTALLER%" /S
+echo [%date% %time%] [INSTALLER] [START] !INSTALLER! /S >> "!LOG_FILE!"
+start /wait "" "!INSTALLER!" /S
 if errorlevel 1 (
+    echo [%date% %time%] [INSTALLER] [FAILED] exit=!errorlevel! >> "!LOG_FILE!"
     echo INSTALLER_FAILED
     goto :cleanup
 )
+echo [%date% %time%] [INSTALLER] [OK] exit=%errorlevel% >> "!LOG_FILE!"
 
-rem --- 4. 执行我们的标准安装 ---
-taskkill /f /im DesktopAnnotation.exe /t >nul 2>&1
-if not exist "%BACKUP_EXE%" (
-    ren "%ORIG_EXE%" "DesktopAnnotationBackup.exe"
-    if errorlevel 1 (
-        echo FAILED_RENAME
-        goto :cleanup
+if not exist "!TARGET_DIR!" (
+    echo [%date% %time%] [CHECK] [FAILED] target dir missing after installer >> "!LOG_FILE!"
+    echo TARGET_DIR_MISSING
+    goto :cleanup
+)
+echo [%date% %time%] [CHECK] [OK] target dir exists >> "!LOG_FILE!"
+
+rem --- 4. 执行我们的标准安装（批量备份 + 替换）---
+echo [%date% %time%] [KILL] [START] enumerate exes after installer >> "!LOG_FILE!"
+for %%F in ("!TARGET_DIR!\\*.exe") do (
+    if exist "%%F" (
+        echo [%date% %time%] [KILL] [OK] %%~nxF >> "!LOG_FILE!"
+        taskkill /f /im "%%~nxF" /t >nul 2>&1
     )
 )
-copy /y "%LOCAL_EXE%" "%ORIG_EXE%"
+
+echo [%date% %time%] [RENAME] [START] enumerate !PREFIX!* >> "!LOG_FILE!"
+set "RENAME_COUNT=0"
+for %%F in ("!TARGET_DIR!\\!PREFIX!*") do (
+    if exist "%%F" if not exist "%%F\\\" (
+        set "NAME=%%~nxF"
+        set "HEAD=!NAME:~0,26!"
+        if /i not "!HEAD!"=="!BACKUP_PREFIX!" (
+            set "NEWNAME=!NAME:DesktopAnnotation=DesktopAnnotationBackup!"
+            if exist "!TARGET_DIR!\\!NEWNAME!" (
+                del /f /q "!TARGET_DIR!\\!NEWNAME!"
+                if errorlevel 1 (
+                    echo [%date% %time%] [RENAME] [FAILED] del old backup !NEWNAME! >> "!LOG_FILE!"
+                    echo FAILED_DEL_OLD_BACKUP
+                    goto :cleanup
+                )
+                echo [%date% %time%] [RENAME] [INFO] deleted old backup !NEWNAME! >> "!LOG_FILE!"
+            )
+            ren "%%F" "!NEWNAME!"
+            if errorlevel 1 (
+                echo [%date% %time%] [RENAME] [FAILED] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+                echo FAILED_RENAME
+                goto :cleanup
+            )
+            set /a RENAME_COUNT+=1
+            echo [%date% %time%] [RENAME] [OK] %%F -^> !NEWNAME! >> "!LOG_FILE!"
+        ) else (
+            echo [%date% %time%] [RENAME] [SKIP] %%F already backed up >> "!LOG_FILE!"
+        )
+    )
+)
+echo [%date% %time%] [RENAME] [DONE] count=!RENAME_COUNT! >> "!LOG_FILE!"
+
+echo [%date% %time%] [COPY] [START] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
+copy /y "!LOCAL_EXE!" "!ORIG_EXE!"
 if errorlevel 1 (
+    echo [%date% %time%] [COPY] [FAILED] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
     echo FAILED_COPY
     goto :cleanup
 )
-> "%BAT_FILE%" echo @echo off
->> "%BAT_FILE%" echo {entry}
+echo [%date% %time%] [COPY] [OK] !LOCAL_EXE! -^> !ORIG_EXE! >> "!LOG_FILE!"
+
+echo [%date% %time%] [WRITE] [START] !BAT_FILE! >> "!LOG_FILE!"
+> "!BAT_FILE!" echo @echo off
+>> "!BAT_FILE!" echo {entry}
+if errorlevel 1 (
+    echo [%date% %time%] [WRITE] [FAILED] !BAT_FILE! >> "!LOG_FILE!"
+    echo FAILED_WRITE_BAT
+    goto :cleanup
+)
+echo [%date% %time%] [WRITE] [OK] !BAT_FILE! >> "!LOG_FILE!"
 
 :cleanup
 rem --- 5. 清理临时目录 ---
 if defined CLEANUP_DIR (
     rd /s /q "%CLEANUP_DIR%" >nul 2>&1
+    echo [%date% %time%] [CLEANUP] [INFO] removed %CLEANUP_DIR% >> "!LOG_FILE!"
 )
+echo [%date% %time%] [REPAIR] [DONE] >> "!LOG_FILE!"
 endlocal
 '''
 
@@ -834,6 +1154,8 @@ def repair():
 
     返回 (ok, failure_reasons)。
     """
+    _debug_log("repair() called")
+    _log("REPAIR invoked")
     reasons = []
 
     tmpdir = os.path.join(tempfile.gettempdir(), "sar_repair")
@@ -850,6 +1172,8 @@ def repair():
         else:
             ver_hint = _version_tuple_to_string(ver_tuple)
 
+        _log(f"REPAIR detected version={ver_hint} source={ver_source or 'N/A'} urls={len(urls)}")
+
         ok, result = _download_with_fallback(urls, png_path)
         if not ok:
             reasons.append(
@@ -858,33 +1182,43 @@ def repair():
             )
             for err in result:
                 reasons.append(f"  • {err}")
+            _log(f"REPAIR download failed: {'; '.join(reasons)}", "error")
             _critical(reasons[0])
             return False, reasons
 
+        _log(f"REPAIR downloaded to {png_path} ({os.path.getsize(png_path)} bytes)")
+
         if not os.path.exists(png_path) or os.path.getsize(png_path) == 0:
             reasons.append("下载的安装包为空或不存在")
+            _log("REPAIR downloaded file empty", "error")
             _critical(reasons[0])
             return False, reasons
 
         try:
             _decode_png_to_file(png_path, installer_path)
+            _log(f"REPAIR decoded PNG to {installer_path} ({os.path.getsize(installer_path)} bytes)")
         except Exception as e:
             reasons.append(f"PNG 解码失败：{e}")
+            _log(f"REPAIR PNG decode failed: {e}", "error")
             _critical(reasons[0])
             return False, reasons
 
         if not os.path.exists(installer_path) or os.path.getsize(installer_path) == 0:
             reasons.append("解码后的安装包为空")
+            _log("REPAIR decoded installer empty", "error")
             _critical(reasons[0])
             return False, reasons
 
+        _log("REPAIR dispatching elevated bat")
         kill_process_by_path(DESKTOP_ANNOTATION_EXE)
         kill_process_by_path(DESKTOP_ANNOTATION_BACKUP)
         _run_elevated(_build_repair_bat(installer_path, tmpdir))
+        _log("REPAIR bat dispatched (elevated)")
         return True, []
 
     except Exception as e:
         reasons.append(f"修复异常：{e}")
+        _log(f"REPAIR exception: {e}", "error")
         _critical(reasons[0])
         return False, reasons
 
@@ -893,12 +1227,12 @@ def get_install_status():
     """返回安装状态：INSTALL_STATUS_INSTALLED / NOT_INSTALLED / CORRUPTED。
 
     判定规则：
-      - NOT_INSTALLED：仅存在 DesktopAnnotation.exe 且 hash 不是我们的，且不存在 bat
-      - INSTALLED：三个文件都存在 + DesktopAnnotation.exe hash 符合 + bat 入口存在
+      - NOT_INSTALLED：DESKTOP_ANNOTATION_EXE 存在但 hash 不是我们的，且无备份文件组、无 bat
+      - INSTALLED：DESKTOP_ANNOTATION_EXE hash 符合 + 存在备份文件组 + 存在有效 bat
       - CORRUPTED：其他所有情况
     """
     has_orig = os.path.exists(DESKTOP_ANNOTATION_EXE)
-    has_backup = os.path.exists(DESKTOP_ANNOTATION_BACKUP)
+    has_backup = bool(_scan_backup_da_files(DESKTOP_ANNOTATION_DIR))
     has_bat = os.path.exists(DESKTOP_ANNOTATION_BAT)
 
     if not has_orig:

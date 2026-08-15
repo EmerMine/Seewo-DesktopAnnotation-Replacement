@@ -1,5 +1,6 @@
 import sys
 import os
+import argparse
 import webbrowser
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
@@ -15,19 +16,49 @@ from utils import (
     get_icon_path,
     apply_style,
     apply_theme,
+    _is_debug,
+    _debug_log,
+    set_debug_mode,
 )
 
 
+def _parse_args(argv):
+    parser = argparse.ArgumentParser(
+        prog="Seewo-DesktopAnnotation-Replacement",
+        description="希沃批注替换工具",
+        add_help=False,
+    )
+    parser.add_argument("-debug", "--debug", action="store_true", dest="debug",
+                        help="强制启用调试模式")
+    parser.add_argument("-settings", "--settings", action="store_true", dest="settings",
+                        help="直接打开设置窗口")
+    parser.add_argument("-h", "--help", action="store_true", dest="help",
+                        help="显示帮助信息")
+    args, unknown = parser.parse_known_args(argv)
+    if unknown:
+        _debug_log(f"未识别的命令行参数已忽略: {unknown}")
+    if args.help:
+        parser.print_help()
+        sys.exit(0)
+    return args
+
+
 def main():
-    args = sys.argv[1:]
+    args = _parse_args(sys.argv[1:])
+
+    if args.debug:
+        set_debug_mode(True)
+        _debug_log("命令行参数 -debug 已激活，强制启用调试模式")
+    _debug_log(f"main() 启动, sys.argv={sys.argv[1:]}, _is_debug()={_is_debug()}")
+
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     app = QApplication(sys.argv)
     settings = load_settings()
     apply_style(settings.get("style", "windowsvista"))
     apply_theme(settings.get("theme", "system"))
 
-    if get_install_status() == INSTALL_STATUS_NOT_INSTALLED and not args:
-        msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "") # type: ignore
+    if get_install_status() == INSTALL_STATUS_NOT_INSTALLED and not args.settings:
+        msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换" + ("（调试模式）" if _is_debug() else ""), "") # type: ignore
         msg_box.setWindowIcon(QIcon(get_icon_path()))
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(
@@ -55,7 +86,7 @@ def main():
             check_for_update_async(parent=w, show_dialog=True) # type: ignore
         sys.exit(app.exec())
 
-    if "-settings" in args:
+    if args.settings:
         w = SettingsWindow()
         w.show()
         if settings.get("auto_check_update", True):

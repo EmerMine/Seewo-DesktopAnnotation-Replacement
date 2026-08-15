@@ -33,6 +33,7 @@ from utils import (
     delete_shortcut,
     _is_win11,
     check_icc_ce_url_protocol,
+    _is_debug,
     ICC_STATUS_OK,
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
@@ -45,7 +46,7 @@ from .update import check_for_update
 class SettingsWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("希沃批注替换")
+        self.setWindowTitle("希沃批注替换" + ("（调试模式）" if _is_debug() else ""))
         self.setWindowIcon(QIcon(get_icon_path()))
         self.settings = load_settings()
         self._init_ui = True
