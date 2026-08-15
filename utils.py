@@ -20,34 +20,32 @@ try:
 except Exception:
     _HAS_PIL = False
 
-VERSION = "3.0.0"
 
-def get_base_dir():
+def _load_default_config():
+    candidates = []
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
+        candidates.append(os.path.join(os.path.dirname(sys.executable), "default_config.json"))
+        candidates.append(os.path.join(os.getcwd(), "default_config.json"))
+        internal = os.path.join(os.getcwd(), "_internal", "default_config.json")
+        candidates.append(internal)
     else:
-        return os.path.dirname(os.path.abspath(__file__))
+        candidates.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "default_config.json"))
+        candidates.append(os.path.join(os.getcwd(), "default_config.json"))
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            continue
+    return {}
 
-def get_data_dir():
-    cwd = os.getcwd()
-    internal = os.path.join(cwd, "_internal")
-    return internal if os.path.isdir(internal) else cwd
 
-def get_config_path():
-    return os.path.join(get_data_dir(), "config.json")
+_config = _load_default_config()
 
-def _is_win11():
-    ver = sys.getwindowsversion()
-    return ver.build >= 22000
 
-def get_icon_path():
-    return os.path.join(get_data_dir(), "resources", "icon.ico")
+VERSION = _config.get("version", "3.0.0")
 
-def get_shield_icon_path():
-    filename = "win11.ico" if _is_win11() else "win10.ico"
-    return os.path.join(get_data_dir(), "resources", "admin", filename)
-
-DEFAULT_SETTINGS = {
+DEFAULT_SETTINGS = _config.get("default_settings", {
     "ink_product": "none",
     "show_loading_window": True,
     "auto_pen": False,
@@ -60,7 +58,73 @@ DEFAULT_SETTINGS = {
     "auto_check_update": True,
     "update_never_remind": False,
     "update_skipped_version": None,
-}
+})
+
+SHORTCUT_NAME = _config.get("shortcut_name", "希沃批注替换设置.lnk")
+
+_icc_cfg = _config.get("icc", {})
+ICC_PROTOCOL_KEY = _icc_cfg.get("protocol_key", r"icc")
+ICC_COMMAND_KEY = _icc_cfg.get("command_key", r"icc\shell\open\command")
+ICC_STATUS_OK = _icc_cfg.get("status_ok", "ok")
+ICC_STATUS_NO_PROTOCOL = _icc_cfg.get("status_no_protocol", "no_protocol")
+ICC_STATUS_BROKEN = _icc_cfg.get("status_broken", "broken")
+ICC_MIN_AUTO_PEN_VERSION = tuple(_icc_cfg.get("min_auto_pen_version", [1, 7, 18, 7]))
+
+_da_cfg = _config.get("desktop_annotation", {})
+DESKTOP_ANNOTATION_DIR = _da_cfg.get("dir", r"C:\Program Files (x86)\Seewo\MiniApps\DesktopAnnotation")
+_DESKTOP_ANNOTATION_EXE_NAME = _da_cfg.get("exe_name", "DesktopAnnotation.exe")
+_DESKTOP_ANNOTATION_BACKUP_NAME = _da_cfg.get("backup_name", "DesktopAnnotationBackup.exe")
+_DESKTOP_ANNOTATION_BAT_NAME = _da_cfg.get("bat_name", "Seewo-DeskopAnnotation-Replacement.bat")
+DESKTOP_ANNOTATION_EXE = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_EXE_NAME)
+DESKTOP_ANNOTATION_BACKUP = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_BACKUP_NAME)
+DESKTOP_ANNOTATION_BAT = os.path.join(DESKTOP_ANNOTATION_DIR, _DESKTOP_ANNOTATION_BAT_NAME)
+
+_apps_cfg = _config.get("apps", {})
+_APPS_EXE_NAME = _apps_cfg.get("exe_name", "DesktopAnnotation.exe")
+APPS_EXE_SHA256 = _apps_cfg.get("exe_sha256", "")
+
+_repair_cfg = _config.get("repair", {})
+REPAIR_EXE_PNG_URL = _repair_cfg.get("exe_png_url", "")
+
+_install_cfg = _config.get("install_status", {})
+INSTALL_STATUS_INSTALLED = _install_cfg.get("installed", "installed")
+INSTALL_STATUS_NOT_INSTALLED = _install_cfg.get("not_installed", "not_installed")
+INSTALL_STATUS_CORRUPTED = _install_cfg.get("corrupted", "corrupted")
+
+
+def get_base_dir():
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
+
+LOCAL_APPS_EXE = os.path.join(get_base_dir(), "apps", _APPS_EXE_NAME)
+
+
+def get_data_dir():
+    cwd = os.getcwd()
+    internal = os.path.join(cwd, "_internal")
+    return internal if os.path.isdir(internal) else cwd
+
+
+def get_config_path():
+    return os.path.join(get_data_dir(), "config.json")
+
+
+def _is_win11():
+    ver = sys.getwindowsversion()
+    return ver.build >= 22000
+
+
+def get_icon_path():
+    return os.path.join(get_data_dir(), "resources", "icon.ico")
+
+
+def get_shield_icon_path():
+    filename = "win11.ico" if _is_win11() else "win10.ico"
+    return os.path.join(get_data_dir(), "resources", "admin", filename)
+
 
 _THEME_TO_SCHEME = {
     "dark": Qt.ColorScheme.Dark,
@@ -68,15 +132,18 @@ _THEME_TO_SCHEME = {
     "system": Qt.ColorScheme.Unknown,
 }
 
+
 def apply_style(style_name):
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyle(style_name) # type: ignore
     app.setPalette(QPalette()) # type: ignore
 
+
 def apply_theme(theme):
     scheme = _THEME_TO_SCHEME.get(theme, Qt.ColorScheme.Unknown)
     QApplication.styleHints().setColorScheme(scheme) # type: ignore
     QApplication.instance().setPalette(QPalette()) # type: ignore
+
 
 def load_settings():
     config_path = get_config_path()
@@ -89,10 +156,12 @@ def load_settings():
     settings.update(data)
     return settings
 
+
 def save_settings(settings):
     config_path = get_config_path()
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(settings, f, indent=4, ensure_ascii=False)
+
 
 def run_protocol(uri):
     try:
@@ -106,6 +175,7 @@ def run_protocol(uri):
             )
     except Exception:
         pass
+
 
 def sha256_file(path):
     """计算文件 SHA-256 哈希（十六进制小写字符串）。文件不存在返回 None。"""
@@ -156,10 +226,10 @@ def kill_process_by_path(exe_path):
                 pass
 
 
-SHORTCUT_NAME = "希沃批注替换设置.lnk"
 START_MENU_LNK = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
                               r"Microsoft\Windows\Start Menu\Programs", SHORTCUT_NAME)
 DESKTOP_LNK = os.path.join(os.path.expanduser("~"), "Desktop", SHORTCUT_NAME)
+
 
 def shortcut_exists(kind):
     if kind == "start_menu":
@@ -167,6 +237,7 @@ def shortcut_exists(kind):
     if kind == "desktop":
         return os.path.exists(DESKTOP_LNK)
     return False
+
 
 def create_shortcut(kind):
     target = os.path.join(get_base_dir(), "Annotation.exe")
@@ -190,6 +261,7 @@ def create_shortcut(kind):
     except Exception as e:
         raise RuntimeError(str(e)) from e
 
+
 def delete_shortcut(kind):
     if kind == "start_menu":
         lnk = START_MENU_LNK
@@ -200,17 +272,11 @@ def delete_shortcut(kind):
     if os.path.exists(lnk):
         os.remove(lnk)
 
+
 def _critical(text):
     msg = QMessageBox(QMessageBox.Critical, "希沃批注替换", text) # type: ignore
     msg.setWindowIcon(QIcon(get_icon_path()))
     msg.exec()
-
-ICC_PROTOCOL_KEY = r"icc"
-ICC_COMMAND_KEY = r"icc\shell\open\command"
-
-ICC_STATUS_OK = "ok"
-ICC_STATUS_NO_PROTOCOL = "no_protocol"
-ICC_STATUS_BROKEN = "broken"
 
 
 def check_icc_ce_url_protocol():
@@ -308,9 +374,6 @@ def _parse_version_tuple(s):
     return tuple(result[:4])
 
 
-ICC_MIN_AUTO_PEN_VERSION = (1, 7, 18, 7)
-
-
 def _icc_auto_pen_available():
     """返回 (是否可用, ICC-CE 文件版本元组 或 None)。
 
@@ -343,24 +406,6 @@ def _extract_exe_from_command(cmd):
         return s[1:end]
     space = s.find(' ')
     return s[:space] if space != -1 else s
-
-
-DESKTOP_ANNOTATION_DIR = r"C:\Program Files (x86)\Seewo\MiniApps\DesktopAnnotation"
-DESKTOP_ANNOTATION_EXE = os.path.join(DESKTOP_ANNOTATION_DIR, "DesktopAnnotation.exe")
-DESKTOP_ANNOTATION_BACKUP = os.path.join(DESKTOP_ANNOTATION_DIR, "DesktopAnnotationBackup.exe")
-DESKTOP_ANNOTATION_BAT = os.path.join(DESKTOP_ANNOTATION_DIR, "Seewo-DeskopAnnotation-Replacement.bat")
-
-LOCAL_APPS_EXE = os.path.join(get_base_dir(), "apps", "DesktopAnnotation.exe")
-APPS_EXE_SHA256 = "04913f22b039703e1c44f143893ac3f5bb5171ec176194df225be330200b042a"
-
-REPAIR_EXE_PNG_URL = (
-    "https://forum.smart-teach.cn/assets/files/2026-08-11/"
-    "1786453204-935952-desktopannotationsetup.png"
-)
-
-INSTALL_STATUS_INSTALLED = "installed"
-INSTALL_STATUS_NOT_INSTALLED = "not_installed"
-INSTALL_STATUS_CORRUPTED = "corrupted"
 
 
 def _get_entry_command():
@@ -755,4 +800,3 @@ def get_install_status():
             return INSTALL_STATUS_INSTALLED
 
     return INSTALL_STATUS_CORRUPTED
-

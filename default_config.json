@@ -1,0 +1,44 @@
+{
+    "version": "3.0.0",
+    "default_settings": {
+        "ink_product": "none",
+        "show_loading_window": true,
+        "auto_pen": false,
+        "thorough_hide": false,
+        "loading_duration": 3,
+        "theme": "system",
+        "style": "windowsvista",
+        "none_show_disabled_msg": true,
+        "none_msg_duration": 2,
+        "auto_check_update": true,
+        "update_never_remind": false,
+        "update_skipped_version": null
+    },
+    "shortcut_name": "希沃批注替换设置.lnk",
+    "icc": {
+        "protocol_key": "icc",
+        "command_key": "icc\\shell\\open\\command",
+        "status_ok": "ok",
+        "status_no_protocol": "no_protocol",
+        "status_broken": "broken",
+        "min_auto_pen_version": [1, 7, 18, 7]
+    },
+    "desktop_annotation": {
+        "dir": "C:\\Program Files (x86)\\Seewo\\MiniApps\\DesktopAnnotation",
+        "exe_name": "DesktopAnnotation.exe",
+        "backup_name": "DesktopAnnotationBackup.exe",
+        "bat_name": "Seewo-DeskopAnnotation-Replacement.bat"
+    },
+    "apps": {
+        "exe_name": "DesktopAnnotation.exe",
+        "exe_sha256": "04913f22b039703e1c44f143893ac3f5bb5171ec176194df225be330200b042a"
+    },
+    "repair": {
+        "exe_png_url": "https://forum.smart-teach.cn/assets/files/2026-08-11/1786453204-935952-desktopannotationsetup.png"
+    },
+    "install_status": {
+        "installed": "installed",
+        "not_installed": "not_installed",
+        "corrupted": "corrupted"
+    }
+}
