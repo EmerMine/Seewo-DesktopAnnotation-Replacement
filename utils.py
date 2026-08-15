@@ -85,6 +85,7 @@ APPS_EXE_SHA256 = _apps_cfg.get("exe_sha256", "")
 
 _repair_cfg = _config.get("repair", {})
 REPAIR_EXE_PNG_URL = _repair_cfg.get("exe_png_url", "")
+REPAIR_URL_MAP = _repair_cfg.get("url", {})
 
 _install_cfg = _config.get("install_status", {})
 INSTALL_STATUS_INSTALLED = _install_cfg.get("installed", "installed")
@@ -372,6 +373,82 @@ def _parse_version_tuple(s):
     while len(result) < 4:
         result.append(0)
     return tuple(result[:4])
+
+
+def _version_tuple_to_string(ver):
+    """将 (1, 0, 0, 133) 转为 "1.0.0.133"。"""
+    if ver is None:
+        return None
+    return ".".join(str(p) for p in ver)
+
+
+def _version_string_to_tuple(s):
+    """将 JSON 键 "1.0.0.133" 转为版本元组。"""
+    parts = s.split(".")
+    try:
+        return tuple(int(p) for p in parts)
+    except ValueError:
+        return None
+
+
+def _get_latest_version_key(url_map):
+    """从版本→URL列表的映射中，按语义版本号比较选取最大的版本键。"""
+    if not url_map:
+        return None
+    best_key = None
+    best_tuple = None
+    for key in url_map:
+        t = _version_string_to_tuple(key)
+        if t is None:
+            continue
+        if best_tuple is None or t > best_tuple:
+            best_tuple = t
+            best_key = key
+    return best_key
+
+
+def get_desktop_annotation_version():
+    """读取希沃桌面批注 exe 的版本号。
+
+    优先尝试 DESKTOP_ANNOTATION_BACKUP，若不存在或读取失败再尝试 DESKTOP_ANNOTATION_EXE。
+    返回 (version_tuple, source_path)；若均读取失败则返回 (None, None)。
+    """
+    candidates = []
+    if DESKTOP_ANNOTATION_BACKUP not in candidates:
+        candidates.append(DESKTOP_ANNOTATION_BACKUP)
+    if DESKTOP_ANNOTATION_EXE not in candidates:
+        candidates.append(DESKTOP_ANNOTATION_EXE)
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        ver = get_file_version(path)
+        if ver is not None:
+            return ver, path
+    return None, None
+
+
+def get_repair_urls_for_version(ver_tuple):
+    """根据版本元组查找修复安装包的下载链接列表。
+
+    优先匹配完全对应的版本；若找不到则回退到最新版本；
+    若映射表本身为空则回退到默认 REPAIR_EXE_PNG_URL。
+    返回 list[str]（可能为空列表）。
+    """
+    url_map = REPAIR_URL_MAP
+    if not url_map:
+        return [REPAIR_EXE_PNG_URL] if REPAIR_EXE_PNG_URL else []
+
+    if ver_tuple is not None:
+        key = _version_tuple_to_string(ver_tuple)
+        matched = url_map.get(key)
+        if matched:
+            return list(matched)
+
+    latest_key = _get_latest_version_key(url_map)
+    if latest_key:
+        return list(url_map[latest_key])
+
+    return [REPAIR_EXE_PNG_URL] if REPAIR_EXE_PNG_URL else []
 
 
 def _icc_auto_pen_available():
@@ -674,6 +751,26 @@ def _download(url, dest_path):
                 f.write(chunk)
 
 
+def _download_with_fallback(urls, dest_path):
+    """按顺序尝试 urls 中的每个 URL 下载到 dest_path。
+
+    成功即返回 (True, url_used)；全部失败则返回 (False, list_of_errors)。
+    """
+    if not urls:
+        return False, ["下载链接列表为空"]
+    errors = []
+    for url in urls:
+        try:
+            _download(url, dest_path)
+            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
+                return True, url
+            else:
+                errors.append(f"下载完成但文件为空：{url}")
+        except Exception as e:
+            errors.append(f"{url} — {e}")
+    return False, errors
+
+
 def _build_repair_bat(installer_exe, cleanup_dir):
     """生成修复流程的管理员 bat：清理 → 运行原始安装包 → 标准安装我们的 exe。"""
     entry = _get_entry_command()
@@ -733,7 +830,7 @@ endlocal
 
 
 def repair():
-    """修复损坏的安装：下载原始安装包 → 静默安装 → 标准安装我们的 exe。
+    """修复损坏的安装：读取当前版本 → 匹配下载链接 → 下载原始安装包 → 静默安装 → 标准安装我们的 exe。
 
     返回 (ok, failure_reasons)。
     """
@@ -745,24 +842,40 @@ def repair():
     installer_path = os.path.join(tmpdir, "DesktopAnnotationSetup.exe")
 
     try:
-        try:
-            _download(REPAIR_EXE_PNG_URL, png_path)
-        except Exception as e:
-            reasons.append(f"下载安装包失败：{e}")
+        ver_tuple, ver_source = get_desktop_annotation_version()
+        urls = get_repair_urls_for_version(ver_tuple)
+
+        if ver_tuple is None:
+            ver_hint = "未知"
+        else:
+            ver_hint = _version_tuple_to_string(ver_tuple)
+
+        ok, result = _download_with_fallback(urls, png_path)
+        if not ok:
+            reasons.append(
+                f"下载版本 {ver_hint} 的安装包失败（尝试了 {len(urls)} 个链接）。"
+                f"目标来源：{ver_source or '未找到对应 exe'}。"
+            )
+            for err in result:
+                reasons.append(f"  • {err}")
+            _critical(reasons[0])
             return False, reasons
 
         if not os.path.exists(png_path) or os.path.getsize(png_path) == 0:
             reasons.append("下载的安装包为空或不存在")
+            _critical(reasons[0])
             return False, reasons
 
         try:
             _decode_png_to_file(png_path, installer_path)
         except Exception as e:
             reasons.append(f"PNG 解码失败：{e}")
+            _critical(reasons[0])
             return False, reasons
 
         if not os.path.exists(installer_path) or os.path.getsize(installer_path) == 0:
             reasons.append("解码后的安装包为空")
+            _critical(reasons[0])
             return False, reasons
 
         kill_process_by_path(DESKTOP_ANNOTATION_EXE)
@@ -772,6 +885,7 @@ def repair():
 
     except Exception as e:
         reasons.append(f"修复异常：{e}")
+        _critical(reasons[0])
         return False, reasons
 
 

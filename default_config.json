@@ -34,7 +34,19 @@
         "exe_sha256": "04913f22b039703e1c44f143893ac3f5bb5171ec176194df225be330200b042a"
     },
     "repair": {
-        "exe_png_url": "https://forum.smart-teach.cn/assets/files/2026-08-11/1786453204-935952-desktopannotationsetup.png"
+        "url": {
+                "1.0.0.133": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714592-624870-desktopannotation-100133.png", "https://www.helloimg.com/i/2026/08/15/6a7fe9ad3ac06.png"],
+                "1.0.0.138": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714587-648268-desktopannotation-100138.png", "https://www.helloimg.com/i/2026/08/15/6a7feef81cd59.png"],
+                "1.0.0.142": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714583-827237-desktopannotation-100142.png", "https://www.helloimg.com/i/2026/08/15/6a7feed0c9044.png"],
+                "1.0.0.149": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714580-210845-desktopannotation-100149.png", "https://www.helloimg.com/i/2026/08/15/6a7feeb85f6f6.png"],
+                "1.0.0.225": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714576-266959-desktopannotation-100225.png", "https://www.helloimg.com/i/2026/08/15/6a7fee37dc2bb.png"],
+                "1.0.4.786": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714572-126509-desktopannotation-104786.png", "https://www.helloimg.com/i/2026/08/15/6a7fee2103a4c.png"],
+                "1.0.4.821": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714567-34485-desktopannotation-104821.png", "https://www.helloimg.com/i/2026/08/15/6a7feb342c516.png"],
+                "1.0.4.895": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714562-132263-desktopannotation-104895.png", "https://www.helloimg.com/i/2026/08/15/6a7feacfa2365.png"],
+                "2.0.1.365": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714557-11484-desktopannotation-201365.png", "https://www.helloimg.com/i/2026/08/15/6a7feaa705cfb.png"],
+                "2.0.1.394": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714550-368759-desktopannotation-201394.png", "https://www.helloimg.com/i/2026/08/15/6a7fea7399378.png"],
+                "2.0.1.416": ["https://forum.smart-teach.cn/assets/files/2026-08-14/1786714543-71666-desktopannotation-201416.png", "https://www.helloimg.com/i/2026/08/15/6a7fea4cced2d.png"]    
+        }
     },
     "install_status": {
         "installed": "installed",
