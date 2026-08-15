@@ -361,7 +361,7 @@ class SettingsWindow(QWidget):
             self.btn_action.setText(
                 "下载安装包中……"
                 if is_repair
-                else "安装中……"
+                else "修复中……"
             )
         self.btn_action.repaint()
         QApplication.processEvents()
