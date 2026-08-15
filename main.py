@@ -1,7 +1,6 @@
 import sys
 import os
 import argparse
-import webbrowser
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
@@ -31,7 +30,10 @@ def _parse_args(argv):
     parser.add_argument("-debug", "--debug", action="store_true", dest="debug",
                         help="强制启用调试模式")
     parser.add_argument("-settings", "--settings", action="store_true", dest="settings",
-                        help="直接打开设置窗口")
+                        help="打开设置窗口")
+    parser.add_argument("-run_annotation_app", "--run_annotation_app", action="store_true",
+                        dest="run_annotation_app",
+                        help="直接启动批注软件（供 bat 入口调用）")
     parser.add_argument("-h", "--help", action="store_true", dest="help",
                         help="显示帮助信息")
     args, unknown = parser.parse_known_args(argv)
@@ -41,6 +43,21 @@ def _parse_args(argv):
         parser.print_help()
         sys.exit(0)
     return args
+
+
+def _run_annotation_app():
+    settings = load_settings()
+    if settings.get("ink_product") == "none":
+        exit_code = none.run()
+    elif settings.get("ink_product") == "icc_ce":
+        exit_code = icc_ce.run()
+    elif settings.get("ink_product") == "keep":
+        exit_code = original.run()
+    else:
+        exit_code = 1
+    if settings.get("auto_check_update", True):
+        check_for_update()
+    return exit_code
 
 
 def main():
@@ -57,7 +74,10 @@ def main():
     apply_style(settings.get("style", "windowsvista"))
     apply_theme(settings.get("theme", "system"))
 
-    if get_install_status() == INSTALL_STATUS_NOT_INSTALLED and not args.settings:
+    if args.run_annotation_app:
+        sys.exit(_run_annotation_app())
+
+    if get_install_status() == INSTALL_STATUS_NOT_INSTALLED:
         msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换" + ("（调试模式）" if _is_debug() else ""), "") # type: ignore
         msg_box.setWindowIcon(QIcon(get_icon_path()))
         msg_box.setTextFormat(Qt.RichText) # type: ignore
@@ -80,35 +100,11 @@ def main():
         )
         msg_box.exec()
 
-        w = SettingsWindow()
-        w.show()
-        if settings.get("auto_check_update", True):
-            check_for_update_async(parent=w, show_dialog=True) # type: ignore
-        sys.exit(app.exec())
-
-    if args.settings:
-        w = SettingsWindow()
-        w.show()
-        if settings.get("auto_check_update", True):
-            check_for_update_async(parent=w, show_dialog=True)
-        sys.exit(app.exec())
-
-    if settings.get("ink_product") == "none":
-        exit_code = none.run()
-
-    elif settings.get("ink_product") == "icc_ce":
-        exit_code = icc_ce.run()
-
-    elif settings.get("ink_product") == "keep":
-        exit_code = original.run()
-
-    else:
-        exit_code = 1
-
+    w = SettingsWindow()
+    w.show()
     if settings.get("auto_check_update", True):
-        check_for_update()
-
-    sys.exit(exit_code)
+        check_for_update_async(parent=w, show_dialog=True) # type: ignore
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

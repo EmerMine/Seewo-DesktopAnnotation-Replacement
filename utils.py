@@ -611,18 +611,18 @@ def _extract_exe_from_command(cmd):
 
 
 def _get_entry_command():
-    """返回写进 bat 文件的命令字符串。
+    """返回写进 bat 文件的命令字符串（供希沃调用，应直接启动批注软件）。
 
-    源码模式 (sys.frozen 为 False)：用 python.exe 启动 main.py
-    打包模式：直接启动 Annotation.exe
+    源码模式 (sys.frozen 为 False)：用 pythonw.exe 启动 main.py -run_annotation_app
+    打包模式：直接启动 Annotation.exe -run_annotation_app
     """
     base = get_base_dir()
     if getattr(sys, "frozen", False):
         exe = os.path.join(base, "Annotation.exe")
-        return f'"{exe}"'
-    python = sys.executable
+        return f'"{exe}" -run_annotation_app'
+    pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     main_py = os.path.join(base, "main.py")
-    return f'"{python}" "{main_py}"'
+    return f'"{pythonw}" "{main_py}" -run_annotation_app'
 
 
 def _parse_bat_entry(bat_path):
@@ -652,7 +652,7 @@ def _parse_bat_entry(bat_path):
 
 
 def _split_command_paths(cmd):
-    """从命令字符串中提取所有被引号包围或空格分隔的路径参数。"""
+    """从命令字符串中提取所有被引号包围或空格分隔的路径参数（过滤 -flag 形式的非路径 token）。"""
     paths = []
     i = 0
     n = len(cmd)
@@ -671,7 +671,9 @@ def _split_command_paths(cmd):
             j = i
             while j < n and cmd[j] not in (' ', '\t'):
                 j += 1
-            paths.append(cmd[i:j])
+            token = cmd[i:j]
+            if not token.startswith('-'):
+                paths.append(token)
             i = j
     return paths
 
