@@ -8,7 +8,7 @@ from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import (
     QApplication, QWidget, QLabel, QVBoxLayout, QHBoxLayout, QButtonGroup,
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
-    QGroupBox, QFrame, QStyle,
+    QGroupBox, QFrame, QStyle, QDialog,
 )
 from utils import (
     VERSION,
@@ -37,6 +37,8 @@ from utils import (
     ICC_STATUS_OK,
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
+    check_ifeo_hijack,
+    remove_ifeo_hijacks_async,
 )
 from .icc_ce import ICCCESettingsWindow, ICCURLTroubleshootWindow
 from .none import NoneSettingsWindow
@@ -272,6 +274,89 @@ class SettingsWindow(QWidget):
         self._init_ui = False
         self.update_install_buttons()
         self.resize(300, 380)
+
+        QTimer.singleShot(0, self._check_ifeo_hijack)
+
+    def _check_ifeo_hijack(self):
+        """启动后异步检查 IFEO 劫持并弹出警告对话框。"""
+        if self.settings.get("suppress_ifeo_warning", False):
+            return
+        hijacks = check_ifeo_hijack()
+        if not hijacks:
+            return
+
+        hijack_details = []
+        for h in hijacks:
+            detail = f"{h['hive']}\\...\\{h['name']}"
+            if h.get("has_debugger") and h.get("debugger"):
+                detail += f"<br>Debugger: <code>{h['debugger']}</code>"
+            hijack_details.append(detail)
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("希沃批注替换")
+        dialog.setWindowIcon(QIcon(get_icon_path()))
+        dialog.setModal(True)
+
+        icon = QLabel()
+        icon_pixmap = self.style().standardIcon( # type: ignore
+            QStyle.StandardPixmap.SP_MessageBoxWarning # type: ignore
+        ).pixmap(QSize(48, 48))
+        icon.setPixmap(icon_pixmap)
+        icon.setAlignment(Qt.AlignTop | Qt.AlignHCenter) # type: ignore
+        icon.setFixedWidth(icon_pixmap.width() + 16)
+
+        text_label = QLabel()
+        text_label.setTextFormat(Qt.RichText) # type: ignore
+        text_label.setWordWrap(True)
+        text_label.setText(
+            "<h3>已更换希沃批注替换方法</h3>"
+            "<p>检测到希沃桌面批注的映像劫持，这可能是旧版本希沃批注替换生成的。</p>"
+            "<p>新版本已更换替换方法，保留映像劫持项可能引发问题。</p>"
+            "<p>若该劫持项不是您手动创建的，请手动关闭安全软件后，单击「是」删除映像劫持项。</p>"
+            + "<ul style='margin: 0; padding-left: 18px;'>"
+            + "".join(f"<li>{d}</li>" for d in hijack_details)
+            + "</ul>"
+        )
+
+        top_row = QHBoxLayout()
+        top_row.addWidget(icon)
+        top_row.addWidget(text_label, 1)
+
+        btn_never = QPushButton("不再提示")
+        btn_no = QPushButton("否")
+        btn_yes = QPushButton("是")
+        btn_yes.setDefault(True)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(btn_never)
+        bottom_row.addStretch(1)
+        bottom_row.addWidget(btn_no)
+        bottom_row.addWidget(btn_yes)
+
+        root = QVBoxLayout(dialog)
+        root.addLayout(top_row)
+        root.addSpacing(12)
+        root.addLayout(bottom_row)
+        root.setContentsMargins(16, 16, 16, 12)
+
+        result = {"action": "cancel"}
+
+        btn_never.clicked.connect(lambda: result.__setitem__("action", "never_remind"))
+        btn_never.clicked.connect(dialog.reject)
+        btn_no.clicked.connect(lambda: result.__setitem__("action", "no"))
+        btn_no.clicked.connect(dialog.reject)
+        btn_yes.clicked.connect(lambda: result.__setitem__("action", "yes"))
+        btn_yes.clicked.connect(dialog.accept)
+
+        dialog.exec()
+
+        if result["action"] == "never_remind":
+            self.settings["suppress_ifeo_warning"] = True
+            save_settings(self.settings)
+            return
+
+        if result["action"] == "yes":
+            remove_ifeo_hijacks_async()
 
     def _get_install_status(self):
         return get_install_status()

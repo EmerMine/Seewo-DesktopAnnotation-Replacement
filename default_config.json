@@ -12,7 +12,8 @@
         "none_msg_duration": 2,
         "auto_check_update": true,
         "update_never_remind": false,
-        "update_skipped_version": null
+        "update_skipped_version": null,
+        "suppress_ifeo_warning": false
     },
     "shortcut_name": "希沃批注替换设置.lnk",
     "icc": {
