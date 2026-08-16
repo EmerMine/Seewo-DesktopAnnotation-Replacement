@@ -344,7 +344,7 @@ def create_shortcut(kind):
     """在开始菜单或桌面创建快捷方式。
 
     根据运行模式自动选择目标：
-      - 源码模式 (sys.frozen=False): TargetPath=python.exe, Arguments='"main.py" -settings'
+      - 源码模式 (sys.frozen=False): TargetPath=pythonw.exe, Arguments='"main.py" -settings'
       - 打包模式 (sys.frozen=True):  TargetPath=Annotation.exe, Arguments='-settings'
     """
     if kind == "start_menu":
@@ -728,7 +728,7 @@ def _parse_bat_entry(bat_path):
 
     典型输出：
       打包模式：["C:\\...\\Annotation.exe"]
-      源码模式：["C:\\...\\python.exe", "D:\\...\\main.py"]
+      源码模式：["C:\\...\\pythonw.exe", "D:\\...\\main.py"]
     """
     if not os.path.exists(bat_path):
         return []
