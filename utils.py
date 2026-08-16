@@ -46,7 +46,7 @@ def _load_default_config():
 _config = _load_default_config()
 
 
-VERSION = _config.get("version", "3.0.0")
+VERSION = _config.get("version")
 
 DEFAULT_SETTINGS = _config.get("default_settings", {
     "ink_product": "none",
