@@ -4,6 +4,12 @@
 
 # Seewo-DesktopAnnotation-Replacement<br/>希沃批注替换
 
+![GitHub License](https://img.shields.io/github/license/EmerMine/Seewo-DesktopAnnotation-Replacement)
+![GitHub top language](https://img.shields.io/github/languages/top/EmerMine/Seewo-DesktopAnnotation-Replacement)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/EmerMine/Seewo-DesktopAnnotation-Replacement/build.yml)
+![GitHub issues](https://img.shields.io/github/issues/EmerMine/Seewo-DesktopAnnotation-Replacement)
+![GitHub Repo stars](https://img.shields.io/github/stars/EmerMine/Seewo-DesktopAnnotation-Replacement?style=flat)
+
 </div>
 
 替换 `希沃桌面 2.0+` 自带的桌面批注程序为其它屏幕批注程序，目前仅支持在 Windows 10 上运行，且仅支持替换为 [InkCanvasForClass Community Edition](https://github.com/InkCanvasForClass/community/) 1.7.18.7 以上的版本。
