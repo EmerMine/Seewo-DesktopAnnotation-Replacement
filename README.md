@@ -2,7 +2,7 @@
 
 <img src="banner.png" alt="banner" width="200">
 
-# Seewo-DesktopAnnotation-Replacement<br/><span style="font-size: 13px;">>希沃批注替换</span>
+# Seewo-DesktopAnnotation-Replacement<br/><span style="font-size: 11px;">>希沃批注替换</span>
 
 </div>
 
