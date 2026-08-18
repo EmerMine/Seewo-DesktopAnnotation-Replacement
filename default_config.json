@@ -1,19 +1,36 @@
 {
     "version": "4.0.0",
     "default_settings": {
-        "ink_product": "none",
-        "show_loading_window": true,
-        "auto_pen": false,
-        "thorough_hide": false,
-        "loading_duration": 3,
-        "theme": "system",
-        "style": "windowsvista",
-        "none_show_disabled_msg": true,
-        "none_msg_duration": 2,
-        "auto_check_update": true,
-        "update_never_remind": false,
-        "update_skipped_version": null,
-        "suppress_ifeo_warning": false
+        "general": {
+            "ink_product": "none",
+            "theme": "system",
+            "style": "windowsvista",
+            "auto_check_update": true,
+            "update_never_remind": false,
+            "update_skipped_version": null,
+            "suppress_ifeo_warning": false
+        },
+        "none": {
+            "none_show_disabled_msg": true,
+            "none_msg_duration": 2
+        },
+        "ica_series": {
+            "ica_profiles": [
+                {"id": "p1", "name": "方案 1", "exe_path": "", "window_title": "", "auto_pen": false, "unhide_scheme": "scheme1"}
+            ],
+            "ica_active_profile_id": "p1"
+        },
+        "iccce": {
+            "show_loading_window": true,
+            "auto_pen": false,
+            "thorough_hide": false,
+            "loading_duration": 3
+        },
+        "custom": {
+            "exe_path": "",
+            "show_loading_window": true,
+            "loading_duration": 3
+        }
     },
     "shortcut_name": "希沃批注替换设置.lnk",
     "icc": {
@@ -28,7 +45,7 @@
         "dir": "C:\\Program Files (x86)\\Seewo\\MiniApps\\DesktopAnnotation",
         "exe_name": "DesktopAnnotation.exe",
         "backup_name": "DesktopAnnotationBackup.exe",
-        "bat_name": "Seewo-DeskopAnnotation-Replacement.bat"
+        "bat_name": "Seewo-DeskopAnnotation-Replacement.ps1"
     },
     "apps": {
         "exe_name": "DesktopAnnotation.exe",

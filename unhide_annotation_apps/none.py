@@ -29,7 +29,7 @@ class DisabledMessageWindow(QWidget):
 
 def run():
     settings = load_settings()
-    if not settings.get("none_show_disabled_msg", True):
+    if not settings["none"].get("none_show_disabled_msg", True):
         return 0
     screen = QGuiApplication.primaryScreen()
     geom = screen.availableGeometry()
@@ -43,6 +43,6 @@ def run():
     win2.move(x2, y)
     win1.show()
     win2.show()
-    dur_ms = max(1, int(settings.get("none_msg_duration", 2))) * 1000
+    dur_ms = max(1, int(settings["none"].get("none_msg_duration", 2))) * 1000
     QTimer.singleShot(dur_ms, lambda: (win1.close(), win2.close(), QApplication.instance().quit())) # type: ignore
     return QApplication.instance().exec() # type: ignore

@@ -41,7 +41,9 @@ from utils import (
     remove_ifeo_hijacks_async,
 )
 from .icc_ce import ICCCESettingsWindow, ICCURLTroubleshootWindow
+from .ica_series import ICASettingsWindow
 from .none import NoneSettingsWindow
+from .custom import CustomSettingsWindow
 from .update import check_for_update
 
 
@@ -107,7 +109,7 @@ class SettingsWindow(QWidget):
         self.cmb_style = QComboBox()
         self.cmb_style.addItem("系统默认", "windowsvista")
         self.cmb_style.addItem("Fusion", "Fusion")
-        current_style = self.settings.get("style", "windowsvista")
+        current_style = self.settings["general"].get("style", "windowsvista")
         idx = self.cmb_style.findData(current_style)
         self.cmb_style.setCurrentIndex(idx if idx >= 0 else 0)
         self.cmb_style.currentIndexChanged.connect(self.on_style_changed)
@@ -120,7 +122,7 @@ class SettingsWindow(QWidget):
         self.cmb_theme.addItem("跟随系统", "system")
         self.cmb_theme.addItem("浅色", "light")
         self.cmb_theme.addItem("深色", "dark")
-        current_theme = self.settings.get("theme", "system")
+        current_theme = self.settings["general"].get("theme", "system")
         idx = self.cmb_theme.findData(current_theme)
         self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
         self.cmb_theme.currentIndexChanged.connect(self.on_theme_changed)
@@ -128,7 +130,7 @@ class SettingsWindow(QWidget):
         theme_row.addStretch()
 
         self.chk_auto_update = QCheckBox("自动检查更新")
-        self.chk_auto_update.setChecked(self.settings.get("auto_check_update", True))
+        self.chk_auto_update.setChecked(self.settings["general"].get("auto_check_update", True))
         self.chk_auto_update.toggled.connect(self.on_auto_update_toggled)
 
         grp_common = QGroupBox("通用")
@@ -141,21 +143,16 @@ class SettingsWindow(QWidget):
         self.radio_group = QButtonGroup(self)
         self.radio_keep = QRadioButton("不替换（保持希沃原批注）")
         self.radio_none = QRadioButton("空程序（禁用希沃桌面批注）")
-        self.radio_ica = QRadioButton("Ink Canvas Artistry (WIP)")
-        self.radio_ica.setEnabled(False)
-        self.radio_icb = QRadioButton("Ink Canvas Better (WIP)")
-        self.radio_icb.setEnabled(False)
-        self.radio_icc = QRadioButton("InkCanvasForClass (WIP)")
-        self.radio_icc.setEnabled(False)
+        self.radio_ica = QRadioButton("Ink Canvas Artistry 系列")
         self.radio_icc_ce = QRadioButton("ICC-CE")
+        self.radio_custom = QRadioButton("自定义程序")
         self.radio_group.addButton(self.radio_keep, 0)
         self.radio_group.addButton(self.radio_none, 1)
         self.radio_group.addButton(self.radio_ica, 2)
-        self.radio_group.addButton(self.radio_icb, 3)
-        self.radio_group.addButton(self.radio_icc, 4)
-        self.radio_group.addButton(self.radio_icc_ce, 5)
-        product = self.settings.get("ink_product", "none")
-        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        self.radio_group.addButton(self.radio_icc_ce, 3)
+        self.radio_group.addButton(self.radio_custom, 4)
+        product = self.settings["general"].get("ink_product", "none")
+        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icc_ce": self.radio_icc_ce, "custom": self.radio_custom}
         product_map.get(product, self.radio_none).setChecked(True)
         self.radio_group.idClicked.connect(self.on_product_changed)
 
@@ -163,23 +160,17 @@ class SettingsWindow(QWidget):
         link_color = "#7ab8ff" if is_dark else "#0066cc"
         link_style = f"<a href='#' style='color: {link_color}; text-decoration: none;'>设置</a>"
         self.lbl_set_none = QLabel(link_style)
-        self.lbl_set_icb = QLabel(link_style)
         self.lbl_set_ica = QLabel(link_style)
-        self.lbl_set_icc = QLabel(link_style)
         self.lbl_set_icc_ce = QLabel(link_style)
-        for lbl in (self.lbl_set_none, self.lbl_set_ica, self.lbl_set_icb, self.lbl_set_icc, self.lbl_set_icc_ce):
+        self.lbl_set_custom = QLabel(link_style)
+        for lbl in (self.lbl_set_none, self.lbl_set_ica, self.lbl_set_icc_ce, self.lbl_set_custom):
             lbl.setOpenExternalLinks(False)
             lbl.setCursor(Qt.PointingHandCursor) # type: ignore
 
-        self.lbl_set_icb = QLabel(link_style)
-        self.lbl_set_icb.setOpenExternalLinks(False)
-        self.lbl_set_icb.setCursor(Qt.PointingHandCursor) # type: ignore
-
         self.lbl_set_none.linkActivated.connect(lambda: self._open_product_settings("none"))
         self.lbl_set_ica.linkActivated.connect(lambda: self._open_product_settings("ica"))
-        self.lbl_set_icb.linkActivated.connect(lambda: self._open_product_settings("icb"))
-        self.lbl_set_icc.linkActivated.connect(lambda: self._open_product_settings("icc"))
         self.lbl_set_icc_ce.linkActivated.connect(lambda: self._open_product_settings("icc_ce"))
+        self.lbl_set_custom.linkActivated.connect(lambda: self._open_product_settings("custom"))
 
         self.lbl_icc_ce_issue = QLabel(link_style.replace("设置", "解决问题"))
         self.lbl_icc_ce_issue.setOpenExternalLinks(False)
@@ -193,24 +184,20 @@ class SettingsWindow(QWidget):
         row_none.addWidget(self.radio_none)
         row_none.addStretch()
         row_none.addWidget(self.lbl_set_none)
-        row_icb = QHBoxLayout()
-        row_icb.addWidget(self.radio_icb)
-        row_icb.addStretch()
-        row_icb.addWidget(self.lbl_set_icb)
         row_ica = QHBoxLayout()
         row_ica.addWidget(self.radio_ica)
         row_ica.addStretch()
         row_ica.addWidget(self.lbl_set_ica)
-        row_icc = QHBoxLayout()
-        row_icc.addWidget(self.radio_icc)
-        row_icc.addStretch()
-        row_icc.addWidget(self.lbl_set_icc)
         row_icc_ce = QHBoxLayout()
         row_icc_ce.addWidget(self.radio_icc_ce)
         row_icc_ce.addStretch()
         row_icc_ce.addWidget(self.lbl_icc_ce_issue)
         row_icc_ce.addSpacing(8)
         row_icc_ce.addWidget(self.lbl_set_icc_ce)
+        row_custom = QHBoxLayout()
+        row_custom.addWidget(self.radio_custom)
+        row_custom.addStretch()
+        row_custom.addWidget(self.lbl_set_custom)
 
         self.lbl_icc_ce_hint = QLabel()
         self.lbl_icc_ce_hint.setWordWrap(True)
@@ -225,10 +212,9 @@ class SettingsWindow(QWidget):
         replace_layout.addLayout(row_keep)
         replace_layout.addLayout(row_none)
         replace_layout.addLayout(row_ica)
-        replace_layout.addLayout(row_icb)
-        replace_layout.addLayout(row_icc)
         replace_layout.addLayout(row_icc_ce)
         replace_layout.addWidget(self.lbl_icc_ce_hint)
+        replace_layout.addLayout(row_custom)
         grp_replace.setLayout(replace_layout)
 
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
@@ -279,7 +265,7 @@ class SettingsWindow(QWidget):
 
     def _check_ifeo_hijack(self):
         """启动后异步检查 IFEO 劫持并弹出警告对话框。"""
-        if self.settings.get("suppress_ifeo_warning", False):
+        if self.settings["general"].get("suppress_ifeo_warning", False):
             return
         hijacks = check_ifeo_hijack()
         if not hijacks:
@@ -325,7 +311,7 @@ class SettingsWindow(QWidget):
 
         content_frame = QFrame()
         content_frame.setLayout(top_row)
-        if self.settings.get("style") == "windowsvista":
+        if self.settings["general"].get("style") == "windowsvista":
             content_frame.setStyleSheet(
                 "QFrame { background-color: #ffffff; }"
             )
@@ -367,7 +353,7 @@ class SettingsWindow(QWidget):
         dialog.exec()
 
         if result["action"] == "never_remind":
-            self.settings["suppress_ifeo_warning"] = True
+            self.settings["general"]["suppress_ifeo_warning"] = True
             save_settings(self.settings)
             return
 
@@ -402,14 +388,16 @@ class SettingsWindow(QWidget):
         is_installed = self._install_status == INSTALL_STATUS_INSTALLED
         self.radio_keep.setEnabled(is_installed)
         self.radio_none.setEnabled(is_installed)
+        self.radio_ica.setEnabled(is_installed)
         self.radio_icc_ce.setEnabled(is_installed)
+        self.radio_custom.setEnabled(is_installed)
         if not is_installed:
             self.radio_group.setExclusive(False)
             self.radio_keep.setChecked(False)
             self.radio_none.setChecked(False)
             self.radio_ica.setChecked(False)
-            self.radio_icc.setChecked(False)
             self.radio_icc_ce.setChecked(False)
+            self.radio_custom.setChecked(False)
             self.radio_group.setExclusive(True)
 
         self._icc_status = check_icc_ce_url_protocol()
@@ -460,9 +448,9 @@ class SettingsWindow(QWidget):
             self.btn_action.setText("还原中……")
         else:
             self.btn_action.setText(
-                "下载安装包中……"
+                "修复中……"
                 if is_repair
-                else "修复中……"
+                else "替换中……"
             )
         self.btn_action.repaint()
         QApplication.processEvents()
@@ -499,12 +487,12 @@ class SettingsWindow(QWidget):
         self._refresh_attempts += 1
         if current != self._last_installed_state:
             was_not_installed = self._last_installed_state != INSTALL_STATUS_INSTALLED
+            was_installed = not was_not_installed
             self._last_installed_state = current
             self.refresh_timer.stop()
-            if was_not_installed and current == INSTALL_STATUS_INSTALLED:
-                self.settings["ink_product"] = "keep"
-                save_settings(self.settings)
-                self.radio_keep.setChecked(True)
+            self.settings["general"]["ink_product"] = "keep"
+            save_settings(self.settings)
+            self.radio_keep.setChecked(True)
             self.update_install_buttons()
         elif self._refresh_attempts >= 40:
             self.refresh_timer.stop()
@@ -561,25 +549,25 @@ class SettingsWindow(QWidget):
         msg_box.exec()
         if msg_box.clickedButton() != btn_confirm:
             return
-        save_settings(DEFAULT_SETTINGS.copy())
+        save_settings(copy.deepcopy(DEFAULT_SETTINGS))
         self.settings = load_settings()
         self._refresh_ui_from_settings()
         QMessageBox.information(self, "希沃批注替换", "设置已重置为默认值。")
 
     def _refresh_ui_from_settings(self):
-        style = self.settings.get("style", "windowsvista")
+        style = self.settings["general"].get("style", "windowsvista")
         idx = self.cmb_style.findData(style)
         self.cmb_style.setCurrentIndex(idx if idx >= 0 else 0)
 
-        theme = self.settings.get("theme", "system")
+        theme = self.settings["general"].get("theme", "system")
         idx = self.cmb_theme.findData(theme)
         self.cmb_theme.setCurrentIndex(idx if idx >= 0 else 0)
 
-        product = self.settings.get("ink_product", "none")
-        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icb": self.radio_icb, "icc": self.radio_icc, "icc_ce": self.radio_icc_ce}
+        product = self.settings["general"].get("ink_product", "none")
+        product_map = {"keep": self.radio_keep, "none": self.radio_none, "ica": self.radio_ica, "icc_ce": self.radio_icc_ce, "custom": self.radio_custom}
         target = product_map.get(product, self.radio_none)
         self.radio_group.setExclusive(False)
-        for rb in (self.radio_keep, self.radio_none, self.radio_ica, self.radio_icb, self.radio_icc, self.radio_icc_ce):
+        for rb in (self.radio_keep, self.radio_none, self.radio_ica, self.radio_icc_ce, self.radio_custom):
             rb.setChecked(rb is target)
         self.radio_group.setExclusive(True)
 
@@ -591,7 +579,7 @@ class SettingsWindow(QWidget):
         self.chk_desktop.blockSignals(False)
 
         self.chk_auto_update.blockSignals(True)
-        self.chk_auto_update.setChecked(self.settings.get("auto_check_update", True))
+        self.chk_auto_update.setChecked(self.settings["general"].get("auto_check_update", True))
         self.chk_auto_update.blockSignals(False)
 
         self._sync_theme_enabled()
@@ -600,21 +588,27 @@ class SettingsWindow(QWidget):
         self.update_install_buttons()
 
     def on_product_changed(self, btn_id):
-        product_map = {0: "keep", 1: "none", 2: "ica", 3: "icb", 4: "icc", 5: "icc_ce"}
-        self.settings["ink_product"] = product_map.get(btn_id, "none")
+        product_map = {0: "keep", 1: "none", 2: "ica", 3: "icc_ce", 4: "custom"}
+        self.settings["general"]["ink_product"] = product_map.get(btn_id, "none")
         save_settings(self.settings)
 
     def _open_product_settings(self, product):
         if product == "icc_ce":
             self.icc_ce_window = ICCCESettingsWindow()
             self.icc_ce_window.show()
+        elif product == "ica":
+            self.ica_window = ICASettingsWindow()
+            self.ica_window.show()
         elif product == "none":
             self.none_window = NoneSettingsWindow()
             self.none_window.show()
+        elif product == "custom":
+            self.custom_window = CustomSettingsWindow()
+            self.custom_window.show()
         else:
-            QMessageBox.information(
+            QMessageBox.error(
                 self, "希沃批注替换",
-                f"{product} 设置暂未开放。"
+                f"{product} 设置页面不存在，请向开发者反馈。"
             )
 
     def _open_icc_troubleshoot(self):
@@ -689,22 +683,22 @@ class SettingsWindow(QWidget):
 
     def on_style_changed(self, _index):
         style = self.cmb_style.currentData()
-        self.settings["style"] = style
+        self.settings["general"]["style"] = style
         if style != "Fusion":
-            self.settings["theme"] = "light"
+            self.settings["general"]["theme"] = "light"
         save_settings(self.settings)
         apply_style(style)
-        apply_theme(self.settings["theme"])
+        apply_theme(self.settings["general"]["theme"])
         self._sync_theme_enabled()
 
     def on_theme_changed(self, _index):
         theme = self.cmb_theme.currentData()
-        self.settings["theme"] = theme
+        self.settings["general"]["theme"] = theme
         save_settings(self.settings)
         apply_theme(theme)
 
     def on_auto_update_toggled(self, checked):
-        self.settings["auto_check_update"] = checked
+        self.settings["general"]["auto_check_update"] = checked
         save_settings(self.settings)
 
     def _do_shortcut(self, kind, checked, checkbox):

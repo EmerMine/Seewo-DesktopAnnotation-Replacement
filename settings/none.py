@@ -30,7 +30,7 @@ class NoneSettingsWindow(QWidget):
                   self.style().pixelMetric(QStyle.PM_CheckBoxLabelSpacing)) # type: ignore
 
         self.chk_show_msg = QCheckBox("显示「希沃桌面批注已被禁用」提示")
-        self.chk_show_msg.setChecked(self.settings.get("none_show_disabled_msg", True))
+        self.chk_show_msg.setChecked(self.settings["none"].get("none_show_disabled_msg", True))
         self.chk_show_msg.toggled.connect(self.on_show_msg_toggled)
 
         dur_layout = QHBoxLayout()
@@ -38,11 +38,11 @@ class NoneSettingsWindow(QWidget):
         dur_layout.addWidget(QLabel("提示显示时长（秒）："))
         self.spin_dur = QSpinBox()
         self.spin_dur.setRange(1, 10)
-        self.spin_dur.setValue(self.settings.get("none_msg_duration", 2))
+        self.spin_dur.setValue(self.settings["none"].get("none_msg_duration", 2))
         self.spin_dur.valueChanged.connect(self.on_dur_changed)
         dur_layout.addWidget(self.spin_dur)
         dur_layout.addStretch()
-        self.spin_dur.setEnabled(self.settings.get("none_show_disabled_msg", True))
+        self.spin_dur.setEnabled(self.settings["none"].get("none_show_disabled_msg", True))
 
         grp = QGroupBox("禁用提示")
         grp_layout = QVBoxLayout()
@@ -67,10 +67,10 @@ class NoneSettingsWindow(QWidget):
         self.resize(300, 160)
 
     def on_show_msg_toggled(self, checked):
-        self.settings["none_show_disabled_msg"] = checked
+        self.settings["none"]["none_show_disabled_msg"] = checked
         self.spin_dur.setEnabled(checked)
         save_settings(self.settings)
 
     def on_dur_changed(self, val):
-        self.settings["none_msg_duration"] = val
+        self.settings["none"]["none_msg_duration"] = val
         save_settings(self.settings)

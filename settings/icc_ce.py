@@ -188,7 +188,7 @@ class ICCCESettingsWindow(QWidget):
                   self.style().pixelMetric(QStyle.PM_CheckBoxLabelSpacing)) # type: ignore
 
         self.chk_show = QCheckBox("显示加载窗口")
-        self.chk_show.setChecked(self.settings["show_loading_window"])
+        self.chk_show.setChecked(self.settings["iccce"]["show_loading_window"])
         self.chk_show.toggled.connect(self.on_show_toggled)
 
         dur_layout = QHBoxLayout()
@@ -196,11 +196,11 @@ class ICCCESettingsWindow(QWidget):
         dur_layout.addWidget(QLabel("加载窗口显示时长（秒）："))
         self.spin_dur = QSpinBox()
         self.spin_dur.setRange(1, 10)
-        self.spin_dur.setValue(self.settings["loading_duration"])
+        self.spin_dur.setValue(self.settings["iccce"]["loading_duration"])
         self.spin_dur.valueChanged.connect(self.on_dur_changed)
         dur_layout.addWidget(self.spin_dur)
         dur_layout.addStretch()
-        self.spin_dur.setEnabled(self.settings["show_loading_window"])
+        self.spin_dur.setEnabled(self.settings["iccce"]["show_loading_window"])
 
         lbl_hint = QLabel("请按计算机运行 icc:// 协议的时长酌情调整")
         hint_color = "#b0b0b0" if QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark else "gray" # type: ignore
@@ -211,7 +211,7 @@ class ICCCESettingsWindow(QWidget):
         hint_layout.addStretch()
 
         self.chk_pen = QCheckBox("自动切换为笔")
-        self.chk_pen.setChecked(self.settings["auto_pen"])
+        self.chk_pen.setChecked(self.settings["iccce"]["auto_pen"])
         self.chk_pen.toggled.connect(self.on_pen_toggled)
 
         pen_row = QHBoxLayout()
@@ -230,7 +230,7 @@ class ICCCESettingsWindow(QWidget):
             self.chk_pen.setEnabled(False)
             if self.chk_pen.isChecked():
                 self.chk_pen.setChecked(False)
-                self.settings["auto_pen"] = False
+                self.settings["iccce"]["auto_pen"] = False
                 save_settings(self.settings)
             ver_str = ".".join(str(v) for v in pen_ver) if pen_ver else "未知"
             min_ver_str = ".".join(str(v) for v in ICC_MIN_AUTO_PEN_VERSION)
@@ -248,7 +248,7 @@ class ICCCESettingsWindow(QWidget):
         grp_replace.setLayout(replace_layout)
 
         self.chk_hide = QCheckBox("收纳时彻底隐藏")
-        self.chk_hide.setChecked(self.settings["thorough_hide"])
+        self.chk_hide.setChecked(self.settings["iccce"]["thorough_hide"])
         self.chk_hide.toggled.connect(self.on_hide_toggled)
 
         self.btn_show_toolbar = QPushButton("显示 ICC-CE 工具栏")
@@ -284,19 +284,19 @@ class ICCCESettingsWindow(QWidget):
         self.setLayout(main_layout)
 
         self._init_ui = False
-        self.resize(380, 360)
+        self.resize(330, 360)
 
     def restore_hide_cb(self):
         self.chk_hide.setText("收纳时彻底隐藏")
         self.chk_hide.setEnabled(True)
 
     def on_show_toggled(self, checked):
-        self.settings["show_loading_window"] = checked
+        self.settings["iccce"]["show_loading_window"] = checked
         self.spin_dur.setEnabled(checked)
         save_settings(self.settings)
 
     def on_pen_toggled(self, checked):
-        self.settings["auto_pen"] = checked
+        self.settings["iccce"]["auto_pen"] = checked
         save_settings(self.settings)
 
     def on_hide_toggled(self, checked):
@@ -306,12 +306,12 @@ class ICCCESettingsWindow(QWidget):
             run_protocol("icc://thoroughhideon")
         else:
             run_protocol("icc://thoroughhideoff")
-        self.settings["thorough_hide"] = checked
+        self.settings["iccce"]["thorough_hide"] = checked
         save_settings(self.settings)
         self.chk_hide.setEnabled(False)
         self.chk_hide.setText("设置中，请稍后……")
         self.thorough_timer.start(3000)
 
     def on_dur_changed(self, val):
-        self.settings["loading_duration"] = val
+        self.settings["iccce"]["loading_duration"] = val
         save_settings(self.settings)

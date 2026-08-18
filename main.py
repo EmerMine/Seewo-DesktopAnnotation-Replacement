@@ -6,7 +6,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
 from settings.update import check_for_update, check_for_update_async # type: ignore
-from unhide_annotation_apps import icc_ce, none, original
+from unhide_annotation_apps import icc_ce, none, original, custom, ica_series
 from utils import (
     load_settings,
     get_install_status,
@@ -47,15 +47,19 @@ def _parse_args(argv):
 
 def _run_annotation_app():
     settings = load_settings()
-    if settings.get("ink_product") == "none":
+    if settings["general"].get("ink_product") == "none":
         exit_code = none.run()
-    elif settings.get("ink_product") == "icc_ce":
+    elif settings["general"].get("ink_product") == "icc_ce":
         exit_code = icc_ce.run()
-    elif settings.get("ink_product") == "keep":
+    elif settings["general"].get("ink_product") == "keep":
         exit_code = original.run()
+    elif settings["general"].get("ink_product") == "custom":
+        exit_code = custom.run()
+    elif settings["general"].get("ink_product") == "ica":
+        exit_code = ica_series.run()
     else:
         exit_code = 1
-    if settings.get("auto_check_update", True):
+    if settings["general"].get("auto_check_update", True):
         check_for_update()
     return exit_code
 
@@ -71,8 +75,8 @@ def main():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     app = QApplication(sys.argv)
     settings = load_settings()
-    apply_style(settings.get("style", "windowsvista"))
-    apply_theme(settings.get("theme", "system"))
+    apply_style(settings["general"].get("style", "windowsvista"))
+    apply_theme(settings["general"].get("theme", "system"))
 
     if args.run_annotation_app:
         sys.exit(_run_annotation_app())
@@ -102,7 +106,7 @@ def main():
 
     w = SettingsWindow()
     w.show()
-    if settings.get("auto_check_update", True):
+    if settings["general"].get("auto_check_update", True):
         check_for_update_async(parent=w, show_dialog=True) # type: ignore
     sys.exit(app.exec())
 

@@ -52,7 +52,7 @@ def _fallback_to_none(protocol_status):
         reason = "ICC-CE的URL协议不可用"
 
     settings = load_settings()
-    settings["ink_product"] = "none"
+    settings["general"]["ink_product"] = "none"
     save_settings(settings)
 
     _show_toast(["ICC-CE 不可用", f"{reason}，已自动切换为禁用希沃桌面批注模式。"])
@@ -67,9 +67,9 @@ def run():
 
     settings = load_settings()
     run_protocol("icc://unfold")
-    if settings.get("auto_pen", False):
+    if settings["iccce"].get("auto_pen", False):
         run_protocol("icc://tool/pen")
-    if settings.get("show_loading_window", True):
+    if settings["iccce"].get("show_loading_window", True):
         screen = QGuiApplication.primaryScreen()
         geom = screen.availableGeometry()
         win1 = LoadingWindow()
@@ -82,6 +82,6 @@ def run():
         win2.move(x2, y)
         win1.show()
         win2.show()
-        dur_ms = settings.get("loading_duration", 3) * 1000
+        dur_ms = settings["iccce"].get("loading_duration", 3) * 1000
         QTimer.singleShot(dur_ms, lambda: (win1.close(), win2.close(), QApplication.instance().quit())) # type: ignore
         return QApplication.instance().exec() # type: ignore
