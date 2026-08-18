@@ -16,7 +16,7 @@
         },
         "ica_series": {
             "ica_profiles": [
-                {"id": "p1", "name": "方案 1", "exe_path": "", "window_title": "", "auto_pen": false, "unhide_scheme": "scheme1"}
+                {"id": "p1", "name": "方案 1", "exe_path": "", "window_title": "", "auto_pen": false, "unhide_scheme": "scheme1", "shortcut_scope": "local"}
             ],
             "ica_active_profile_id": "p1"
         },

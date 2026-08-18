@@ -27,6 +27,8 @@ _EXEC_FILE_FILTER = "程序文件 (*.exe *.pif *.com *.bat *.cmd);;所有文件 
 
 _WINDOW_TITLE_RE = re.compile(r'^Ink Canvas .+ 画板$')
 _WINDOW_TITLE_EXCLUDE = "Ink Canvas Plus 画板"
+# 窗口标题精确匹配项（严格等于）
+_WINDOW_TITLE_STRICT = "InkCanvasForClass"
 
 _SCHEME_DESCRIPTIONS = {
     "scheme1": (
@@ -56,8 +58,10 @@ def _make_banner(parent, margin_top=8):
 def detect_ica_window_titles():
     """枚举当前所有可见顶层窗口，返回符合 ICA 标题格式的列表。
 
-    匹配规则：以「Ink Canvas 」开头（含空格），以「 画板」结尾（含空格），
-    且中间至少 1 个字符；排除完全等于「Ink Canvas Plus 画板」的标题。
+    匹配规则：
+      1. 标题严格等于 ``InkCanvasForClass``（精确匹配）
+      2. 以「Ink Canvas 」开头（含空格），以「 画板」结尾（含空格），
+         且中间至少 1 个字符；排除完全等于「Ink Canvas Plus 画板」的标题。
     """
     if not sys.platform.startswith("win"):
         return []
@@ -74,9 +78,11 @@ def detect_ica_window_titles():
         buf = ctypes.create_unicode_buffer(length + 1)
         user32.GetWindowTextW(hwnd, buf, length + 1)
         title = buf.value
-        if (title != _WINDOW_TITLE_EXCLUDE
-                and _WINDOW_TITLE_RE.match(title)
-                and title not in results):
+        matched = (
+            title == _WINDOW_TITLE_STRICT
+            or (title != _WINDOW_TITLE_EXCLUDE and _WINDOW_TITLE_RE.match(title))
+        )
+        if matched and title not in results:
             results.append(title)
         return True
 
@@ -145,6 +151,9 @@ class ICASettingsWindow(QWidget):
         self.settings = load_settings()
         self._init_ui = True
 
+        # 记录本会话内"新建且从未修改过"的方案 id：删除时直接跳过确认
+        self._new_unmodified_ids = set()
+
         self._ensure_profiles()
 
         is_win11 = _is_win11()
@@ -197,19 +206,15 @@ class ICASettingsWindow(QWidget):
         QApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed) # type: ignore
 
         self._init_ui = False
-        self.resize(520, 420)
-
-    # ---------- migration ----------
+        self.resize(520, 460)
 
     def _ensure_profiles(self):
         """确保 ica_series 分类下有合法的 ica_profiles 列表与 active_profile_id。
 
-        在嵌套配置结构（Phase C 重构后）下，ica_profiles 位于
-        ``self.settings["ica_series"]["ica_profiles"]`` 而非顶层。
-        此方法负责：
-          1. 检测嵌套结构中是否已有 ica_profiles（正确路径）
-          2. 若有：补全缺失的 window_title 字段、修正无效的 active_profile_id
-          3. 若无：尝试从遗留的扁平键（ica_exe_path 等）迁移；否则创建默认方案
+        负责：
+          1. 检测嵌套结构中是否已有 ica_profiles
+          2. 若有：补全缺失的 window_title / shortcut_scope 字段、修正无效的 active_profile_id
+          3. 若无：创建默认方案
         """
         ica_series = self.settings.setdefault("ica_series", {})
         if "ica_profiles" in ica_series:
@@ -218,10 +223,14 @@ class ICASettingsWindow(QWidget):
                 if "window_title" not in p:
                     p["window_title"] = ""
                     fixed = True
+                if "shortcut_scope" not in p:
+                    p["shortcut_scope"] = "local"
+                    fixed = True
             if not ica_series["ica_profiles"]:
                 ica_series["ica_profiles"] = [
                     {"id": "p1", "name": "方案 1", "exe_path": "",
-                     "window_title": "", "auto_pen": False, "unhide_scheme": "scheme1"},
+                     "window_title": "", "auto_pen": False,
+                     "unhide_scheme": "scheme1", "shortcut_scope": "local"},
                 ]
                 ica_series["ica_active_profile_id"] = "p1"
                 try:
@@ -240,24 +249,20 @@ class ICASettingsWindow(QWidget):
                 try:
                     save_settings(self.settings)
                 except Exception as e:
-                    _log(f"_ensure_profiles: save failed (window_title fix): {e}", level="error")
+                    _log(f"_ensure_profiles: save failed (field fix): {e}", level="error")
             return
 
-        # 回退分支：无嵌套 ica_profiles，尝试从遗留的扁平键迁移
-        old = {
-            "id": "p1",
-            "name": "方案 1",
-            "exe_path": self.settings.pop("ica_exe_path", ""),
-            "window_title": "",
-            "auto_pen": self.settings.pop("ica_auto_pen", False),
-            "unhide_scheme": self.settings.pop("ica_unhide_scheme", "scheme1"),
-        }
-        ica_series["ica_profiles"] = [old]
+        # 无 ica_profiles：创建默认方案
+        ica_series["ica_profiles"] = [
+            {"id": "p1", "name": "方案 1", "exe_path": "",
+             "window_title": "", "auto_pen": False,
+             "unhide_scheme": "scheme1", "shortcut_scope": "local"},
+        ]
         ica_series["ica_active_profile_id"] = "p1"
         try:
             save_settings(self.settings)
         except Exception as e:
-            _log(f"_ensure_profiles: save failed (legacy migration): {e}", level="error")
+            _log(f"_ensure_profiles: save failed (default profile): {e}", level="error")
 
     def _next_profile_id(self):
         max_n = 0
@@ -322,6 +327,7 @@ class ICASettingsWindow(QWidget):
     def _create_tab_page(self, profile):
         page = QWidget(self.tabs)
 
+        # ---- 软件路径 ----
         txt_path = QLineEdit(page)
         txt_path.setPlaceholderText(f"请选择批注软件的可执行程序路径")
         txt_path.setText(profile.get("exe_path", ""))
@@ -335,6 +341,21 @@ class ICASettingsWindow(QWidget):
         path_row.addWidget(txt_path, 1)
         path_row.addWidget(btn_browse)
 
+        # ---- 软件快捷键作用范围 ----
+        cmb_scope = QComboBox(page)
+        cmb_scope.addItem("局部", "local")
+        cmb_scope.addItem("全局", "global")
+        current_scope = profile.get("shortcut_scope", "local")
+        idx = cmb_scope.findData(current_scope)
+        cmb_scope.setCurrentIndex(idx if idx >= 0 else 0)
+        cmb_scope.currentIndexChanged.connect(lambda _i: self._on_scope_changed())
+
+        scope_row = QHBoxLayout()
+        scope_row.addWidget(QLabel("软件快捷键作用范围："))
+        scope_row.addWidget(cmb_scope)
+        scope_row.addStretch()
+
+        # ---- 窗口标题（包装在容器中以支持缩进 + 整体隐藏） ----
         txt_title = QLineEdit(page)
         txt_title.setPlaceholderText("可在任务视图中查看")
         txt_title.setText(profile.get("window_title", ""))
@@ -343,11 +364,18 @@ class ICASettingsWindow(QWidget):
         btn_detect = QPushButton("检测", page)
         btn_detect.clicked.connect(lambda: self._on_detect_clicked())
 
-        title_row = QHBoxLayout()
-        title_row.addWidget(QLabel("窗口标题："))
-        title_row.addWidget(txt_title, 1)
-        title_row.addWidget(btn_detect)
+        title_row_inner = QHBoxLayout()
+        title_row_inner.addWidget(QLabel("窗口标题："))
+        title_row_inner.addWidget(txt_title, 1)
+        title_row_inner.addWidget(btn_detect)
 
+        title_container = QWidget(page)
+        title_ly = QHBoxLayout(title_container)
+        # 默认局部模式：缩进 20px 以突出从属关系
+        title_ly.setContentsMargins(20, 0, 0, 0)
+        title_ly.addLayout(title_row_inner)
+
+        # ---- 取消收纳方案 ----
         cmb_scheme = QComboBox(page)
         cmb_scheme.addItem("推荐模式", "scheme1")
         cmb_scheme.addItem("兼容模式", "scheme2")
@@ -369,24 +397,36 @@ class ICASettingsWindow(QWidget):
         chk_auto_pen.toggled.connect(lambda _v: self._on_auto_pen_toggled())
 
         layout = QVBoxLayout(page)
-        # 平衡的内容边距：上下左右各 9px，提供与选项卡边框的视觉呼吸空间
         layout.setContentsMargins(9, 9, 9, 9)
-        # 行间距 8px，增强纵向视觉层次感
         layout.setSpacing(8)
         layout.addLayout(path_row)
-        layout.addLayout(title_row)
+        layout.addLayout(scope_row)
+        layout.addWidget(title_container)
         layout.addLayout(scheme_row)
         layout.addWidget(lbl_scheme_desc)
         layout.addWidget(chk_auto_pen)
         layout.addStretch()
 
         page._txt_path = txt_path
+        page._title_container = title_container
         page._txt_title = txt_title
+        page._cmb_scope = cmb_scope
         page._cmb_scheme = cmb_scheme
         page._lbl_scheme_desc = lbl_scheme_desc
         page._chk_auto_pen = chk_auto_pen
+        self._apply_scope_visibility(page)
         self._update_scheme_desc_for(page)
         return page
+
+    def _apply_scope_visibility(self, page):
+        """根据当前 shortcut_scope 设置窗口标题容器的可见性与缩进。"""
+        scope = page._cmb_scope.currentData()
+        if scope == "global":
+            page._title_container.hide()
+        else:
+            # 局部模式：向内缩进 20px 以体现与「软件快捷键作用范围」的从属关系
+            page._title_container.layout().setContentsMargins(20, 0, 0, 0)
+            page._title_container.show()
 
     # ---------- helpers ----------
 
@@ -402,6 +442,11 @@ class ICASettingsWindow(QWidget):
     def _current_page(self):
         return self.tabs.currentWidget()
 
+    def _mark_current_dirty(self):
+        profile = self._current_profile()
+        if profile is not None:
+            self._new_unmodified_ids.discard(profile.get("id"))
+
     def _save_current_profile(self):
         page = self._current_page()
         profile = self._current_profile()
@@ -409,6 +454,7 @@ class ICASettingsWindow(QWidget):
             return
         profile["exe_path"] = page._txt_path.text().strip()
         profile["window_title"] = page._txt_title.text().strip()
+        profile["shortcut_scope"] = page._cmb_scope.currentData()
         profile["unhide_scheme"] = page._cmb_scheme.currentData()
         profile["auto_pen"] = page._chk_auto_pen.isChecked()
         try:
@@ -437,23 +483,35 @@ class ICASettingsWindow(QWidget):
     def _on_tab_changed(self, _idx):
         if self._init_ui:
             return
-        self.settings["ica_series"]["ica_active_profile_id"] = self._current_profile()["id"]
+        profile = self._current_profile()
+        if profile is not None:
+            self.settings["ica_series"]["ica_active_profile_id"] = profile["id"]
         save_settings(self.settings)
+
+    def _on_scope_changed(self):
+        if self._init_ui:
+            return
+        page = self._current_page()
+        if page is not None:
+            self._apply_scope_visibility(page)
+        self._mark_current_dirty()
+        self._save_current_profile()
 
     def _on_path_edited(self):
         if self._init_ui:
             return
-        # 输入验证：非空时必须是有效的可执行程序路径
         page = self._current_page()
         if page is not None:
             path = page._txt_path.text().strip()
             if path and not self._validate_exe_path(path, show_warning=True):
                 return
+        self._mark_current_dirty()
         self._save_current_profile()
 
     def _on_title_edited(self):
         if self._init_ui:
             return
+        self._mark_current_dirty()
         self._save_current_profile()
 
     def _validate_exe_path(self, path, show_warning=False):
@@ -512,10 +570,10 @@ class ICASettingsWindow(QWidget):
         )
         if not file_path:
             return
-        # 允许任意可执行程序；通过扩展名 + 文件存在性进行校验
         if not self._validate_exe_path(file_path, show_warning=True):
             return
         page._txt_path.setText(file_path)
+        self._mark_current_dirty()
         self._save_current_profile()
 
     def _on_detect_clicked(self):
@@ -547,6 +605,7 @@ class ICASettingsWindow(QWidget):
             return
         if len(titles) == 1:
             page._txt_title.setText(titles[0])
+            self._mark_current_dirty()
             self._save_current_profile()
             return
 
@@ -555,6 +614,7 @@ class ICASettingsWindow(QWidget):
             selected = dialog.selected_title()
             if selected:
                 page._txt_title.setText(selected)
+                self._mark_current_dirty()
                 self._save_current_profile()
 
     def _on_scheme_changed(self):
@@ -563,11 +623,13 @@ class ICASettingsWindow(QWidget):
         page = self._current_page()
         if page is not None:
             self._update_scheme_desc_for(page)
+        self._mark_current_dirty()
         self._save_current_profile()
 
     def _on_auto_pen_toggled(self):
         if self._init_ui:
             return
+        self._mark_current_dirty()
         self._save_current_profile()
 
     # ---------- profile management buttons ----------
@@ -582,8 +644,10 @@ class ICASettingsWindow(QWidget):
             "window_title": "",
             "auto_pen": False,
             "unhide_scheme": "scheme1",
+            "shortcut_scope": "local",
         }
         self.settings["ica_series"]["ica_profiles"].append(new_profile)
+        self._new_unmodified_ids.add(new_id)
         page = self._create_tab_page(new_profile)
         self.tabs.addTab(page, new_profile["name"])
         self.tabs.setCurrentIndex(self.tabs.count() - 1)
@@ -604,6 +668,7 @@ class ICASettingsWindow(QWidget):
         self.tabs.setTabText(idx, name)
         self._init_ui = False
         profile["name"] = name
+        self._new_unmodified_ids.discard(profile.get("id"))
         save_settings(self.settings)
 
     def _delete_profile(self):
@@ -616,15 +681,19 @@ class ICASettingsWindow(QWidget):
         profile = self._current_profile()
         if profile is None:
             return
-        reply = QMessageBox.question(
-            self, "希沃批注替换",
-            f"确定要删除方案「{profile.get('name', '')}」吗？此操作不可撤销。",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No # type: ignore
-        )
-        if reply != QMessageBox.Yes: # type: ignore
-            return
+        profile_id = profile.get("id")
+        # 本会话新建且从未修改：直接删除，不弹出确认框
+        if profile_id not in self._new_unmodified_ids:
+            reply = QMessageBox.question(
+                self, "希沃批注替换",
+                f"确定要删除方案「{profile.get('name', '')}」吗？此操作不可撤销。",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No # type: ignore
+            )
+            if reply != QMessageBox.Yes: # type: ignore
+                return
         idx = self._current_profile_index()
         self.settings["ica_series"]["ica_profiles"].pop(idx)
+        self._new_unmodified_ids.discard(profile_id)
         self._init_ui = True
         self.tabs.removeTab(idx)
         self._init_ui = False
