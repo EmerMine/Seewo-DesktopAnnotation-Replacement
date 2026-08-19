@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
 from utils import (
     VERSION,
     DEFAULT_SETTINGS,
-    get_base_dir,
     get_icon_path,
     get_shield_icon_path,
     load_settings,
@@ -26,7 +25,6 @@ from utils import (
     get_install_status,
     get_install_diagnostics,
     INSTALL_STATUS_INSTALLED,
-    INSTALL_STATUS_NOT_INSTALLED,
     INSTALL_STATUS_CORRUPTED,
     shortcut_exists,
     create_shortcut,
