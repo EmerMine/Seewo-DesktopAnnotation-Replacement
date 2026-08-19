@@ -8,7 +8,8 @@
             "auto_check_update": true,
             "update_never_remind": false,
             "update_skipped_version": null,
-            "suppress_ifeo_warning": false
+            "suppress_ifeo_warning": false,
+            "suppress_close_confirm": false
         },
         "none": {
             "none_show_disabled_msg": true,

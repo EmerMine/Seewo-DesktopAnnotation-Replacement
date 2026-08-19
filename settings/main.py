@@ -46,6 +46,9 @@ from .update import check_for_update
 
 
 class SettingsWindow(QWidget):
+    # 会话级"不再提示"标记：用户勾选后，本次运行期间关闭主窗口不再弹出确认框
+    _suppress_close_confirm = False
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("希沃批注替换" + ("（调试模式）" if _is_debug() else ""))
@@ -726,3 +729,125 @@ class SettingsWindow(QWidget):
 
     def on_desktop_toggled(self, checked):
         self._do_shortcut("desktop", checked, self.chk_desktop)
+
+    # ------------------------------------------------------------------ #
+    #  窗口关闭管理
+    # ------------------------------------------------------------------ #
+
+    def closeEvent(self, event):
+        """拦截主窗口关闭事件：多窗口时弹出确认对话框。
+
+        - 配置中已选"不再提示"：直接关闭所有窗口
+        - 仅主窗口（无子窗口）：直接关闭
+        - 多窗口：弹出确认对话框，用户选"是"则关闭全部，选"否"则取消
+        """
+        # 读取持久化配置，已勾选"不再提示"则跳过对话框
+        if self.settings["general"].get("suppress_close_confirm", False):
+            self._close_all_other_windows()
+            event.accept()
+            return
+
+        # 统计除主窗口外的可见顶层窗口
+        visible_others = [
+            w for w in QApplication.topLevelWidgets()
+            if w.isVisible() and w is not self
+        ]
+
+        if not visible_others:
+            # 无子窗口，直接关闭
+            event.accept()
+            return
+
+        # 多窗口状态，弹出确认对话框
+        should_close, dont_remind = self._show_close_confirmation()
+        if should_close:
+            if dont_remind:
+                self.settings["general"]["suppress_close_confirm"] = True
+                save_settings(self.settings)
+            self._close_all_other_windows()
+            event.accept()
+        else:
+            event.ignore()
+
+    def _close_all_other_windows(self):
+        """关闭除主窗口外的所有可见顶层窗口。"""
+        for w in QApplication.topLevelWidgets():
+            if w is not self and w.isVisible():
+                w.close()
+
+    def _show_close_confirmation(self):
+        """弹出"将关闭所有窗口"确认对话框。
+
+        Returns
+        -------
+        tuple[bool, bool]
+            ``(should_close, dont_remind)``：是否确认关闭 / 是否勾选"不再提示"
+        """
+        dialog = QDialog(self)
+        dialog.setWindowTitle("希沃批注替换")
+        dialog.setWindowIcon(QIcon(get_icon_path()))
+        dialog.setModal(True)
+
+        # 问号图标
+        icon_label = QLabel()
+        icon_pixmap = self.style().standardIcon( # type: ignore
+            QStyle.StandardPixmap.SP_MessageBoxQuestion # type: ignore
+        ).pixmap(QSize(40, 40))
+        icon_label.setPixmap(icon_pixmap)
+        icon_label.setAlignment(Qt.AlignTop | Qt.AlignHCenter) # type: ignore
+        icon_label.setFixedWidth(icon_pixmap.width() + 16)
+
+        # 提示文本（含 h3 标题）
+        text_label = QLabel("<h3>关闭所有窗口？</h3><p>您已打开了多个窗口。")
+        text_label.setTextFormat(Qt.RichText) # type: ignore
+        text_label.setWordWrap(True)
+
+        top_row = QHBoxLayout()
+        top_row.addWidget(icon_label)
+        top_row.addWidget(text_label, 1)
+        top_row.setContentsMargins(16, 16, 16, 16)
+
+        content_frame = QFrame()
+        content_frame.setLayout(top_row)
+        if self.settings["general"].get("style") == "windowsvista":
+            content_frame.setStyleSheet(
+                "QFrame { background-color: #ffffff; }"
+            )
+
+        # "不再提示"勾选框（左下角）
+        chk_dont_remind = QCheckBox("不再提示")
+
+        # 按钮："取消"在左，"全部关闭"在右
+        btn_no = QPushButton("取消")
+        btn_yes = QPushButton("全部关闭")
+        btn_yes.setDefault(True)
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(chk_dont_remind)
+        bottom_row.addStretch(1)
+        bottom_row.addWidget(btn_yes)
+        bottom_row.addSpacing(6)
+        bottom_row.addWidget(btn_no)
+        bottom_row.setContentsMargins(12, 8, 12, 12)
+
+        separator = QFrame()
+        separator.setFixedHeight(1)
+        separator.setStyleSheet("QFrame { background-color: #dfdfdf; }")
+
+        root = QVBoxLayout(dialog)
+        root.addWidget(content_frame, 1)
+        root.addWidget(separator)
+        root.addLayout(bottom_row)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        result = {"should_close": False}
+
+        btn_yes.clicked.connect(lambda: result.__setitem__("should_close", True))
+        btn_yes.clicked.connect(dialog.accept)
+        btn_no.clicked.connect(dialog.reject)
+
+        QApplication.beep()
+        dialog.exec()
+
+        return result["should_close"], chk_dont_remind.isChecked()
