@@ -28,15 +28,15 @@ _EXEC_FILE_FILTER = "程序文件 (*.exe *.pif *.com *.bat *.cmd);;所有文件 
 _WINDOW_TITLE_RE = re.compile(r'^Ink Canvas .+ 画板$')
 _WINDOW_TITLE_EXCLUDE = "Ink Canvas Plus 画板"
 # 窗口标题精确匹配项（严格等于）
-_WINDOW_TITLE_STRICT = "InkCanvasForClass"
+_WINDOW_TITLE_STRICT = "InkCanvasforClass"
 
 _SCHEME_DESCRIPTIONS = {
     "scheme1": (
-        '自动按下 <code>Alt + D</code> 显示浮动栏并进入批注模式，<br>'
+        '<b>推荐模式说明：</b>自动按下 <code>Alt + D</code> 显示浮动栏并进入批注模式，<br>'
         '再按下 <code>Alt + Q</code> 退出批注模式（若未勾选「自动切换到笔」选项）'
     ),
     "scheme2": (
-        "自动按下两次 <code>Alt + B</code> 进入并退出画板，<br>"
+        "<b>兼容模式说明：</b>自动按下两次 <code>Alt + B</code> 进入并退出画板，<br>"
         '再按下 <code>Alt + D</code> 进入批注模式（若已勾选「自动切换到笔」选项）'
     ),
 }
@@ -59,7 +59,7 @@ def detect_ica_window_titles():
     """枚举当前所有可见顶层窗口，返回符合 ICA 标题格式的列表。
 
     匹配规则：
-      1. 标题严格等于 ``InkCanvasForClass``（精确匹配）
+      1. 标题严格等于 ``InkCanvasforClass``（精确匹配）
       2. 以「Ink Canvas 」开头（含空格），以「 画板」结尾（含空格），
          且中间至少 1 个字符；排除完全等于「Ink Canvas Plus 画板」的标题。
     """
