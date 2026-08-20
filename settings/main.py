@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -526,7 +527,7 @@ class SettingsWindow(QWidget):
             + "</ul>"
         )
 
-        msg_box = QMessageBox(QMessageBox.Information, "替换失败原因", "", parent=self) # type: ignore
+        msg_box = QMessageBox(QMessageBox.Information, "希沃批注替换", "", parent=self) # type: ignore
         msg_box.setTextFormat(Qt.RichText) # type: ignore
         msg_box.setText(text)
         msg_box.setDetailedText(
@@ -607,7 +608,7 @@ class SettingsWindow(QWidget):
             self.custom_window = CustomSettingsWindow()
             self.custom_window.show()
         else:
-            QMessageBox.error(
+            QMessageBox.error( # type: ignore
                 self, "希沃批注替换",
                 f"{product} 设置页面不存在，请向开发者反馈。"
             )
