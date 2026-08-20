@@ -46,7 +46,7 @@ _SCHEME_DESCRIPTIONS = {
 _BANNER_TEXT = {
     "info": (
         "<b>提示</b><br>"
-        '本程序并非完美适配所有批注软件，具体请查看本程序的<a href=https://example.com/>支持列表</a>。'
+        '本程序并非完美适配所有批注软件，具体请查看支持列表。'
     ),
     "warning": (
         "<b>警告</b><br>"
