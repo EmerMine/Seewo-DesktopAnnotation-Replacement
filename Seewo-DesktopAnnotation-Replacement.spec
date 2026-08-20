@@ -9,6 +9,8 @@ for subdir in ('resources',):
     for f in glob.glob(os.path.join(subdir, '**', '*'), recursive=True):
         if os.path.isfile(f):
             datas.append((f, os.path.dirname(f)))
+datas.append(('apps/DesktopAnnotation.exe', 'apps'))
+datas.append(('default_config.json', '.'))
 
 hiddenimports = [
     'settings',
@@ -16,9 +18,13 @@ hiddenimports = [
     'settings.icc_ce',
     'settings.none',
     'settings.update',
+    'settings.ica_series',
+    'settings.custom'
     'unhide_annotation_apps',
     'unhide_annotation_apps.icc_ce',
     'unhide_annotation_apps.none',
+    'unhide_annotation_apps.custom',
+    'unhide_annotation_apps.ica_series'
     'PIL',
     'PIL.Image',
     'numpy',
@@ -57,7 +63,7 @@ exe = EXE(
     upx=True,
     console=False,
     icon='resources/icon.ico',
-    disable_windowed_traceback=True,
+    disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
