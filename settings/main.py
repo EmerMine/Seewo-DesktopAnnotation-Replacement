@@ -135,11 +135,16 @@ class SettingsWindow(QWidget):
         self.chk_auto_update.setChecked(self.settings["general"].get("auto_check_update", True))
         self.chk_auto_update.toggled.connect(self.on_auto_update_toggled)
 
+        self.chk_close_warn = QCheckBox("关闭多个窗口前发出警告")
+        self.chk_close_warn.setChecked(not self.settings["general"].get("suppress_close_confirm", False))
+        self.chk_close_warn.toggled.connect(self.on_close_warn_toggled)
+
         grp_common = QGroupBox("通用")
         common_layout = QVBoxLayout()
         common_layout.addLayout(style_row)
         common_layout.addLayout(theme_row)
         common_layout.addWidget(self.chk_auto_update)
+        common_layout.addWidget(self.chk_close_warn)
         grp_common.setLayout(common_layout)
 
         self.radio_group = QButtonGroup(self)
@@ -204,6 +209,12 @@ class SettingsWindow(QWidget):
         self.lbl_icc_ce_hint = QLabel()
         self.lbl_icc_ce_hint.setWordWrap(True)
 
+        self.lbl_replace_hint = QLabel("您需要先单击上方「替换」按钮，才能将希沃桌面批注替换为下方任意选项。")
+        self.lbl_replace_hint.setWordWrap(True)
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        hint_color = "#b0b0b0" if is_dark else "gray"
+        self.lbl_replace_hint.setStyleSheet(f"color: {hint_color}; font-size: 9pt;")
+
         grp_replace = QGroupBox("批注替换")
         replace_layout = QVBoxLayout()
         hijack_row = QHBoxLayout()
@@ -211,6 +222,7 @@ class SettingsWindow(QWidget):
         hijack_row.addWidget(self.lbl_view_reasons)
         hijack_row.addStretch()
         replace_layout.addLayout(hijack_row)
+        replace_layout.addWidget(self.lbl_replace_hint)
         replace_layout.addLayout(row_keep)
         replace_layout.addLayout(row_none)
         replace_layout.addLayout(row_ica)
@@ -384,6 +396,9 @@ class SettingsWindow(QWidget):
             self.lbl_view_reasons.show()
         else:
             self.lbl_view_reasons.hide()
+        # 替换提示仅在"替换"状态下显示（"修复"/"还原"状态下隐藏）
+        show_hint = status not in (INSTALL_STATUS_INSTALLED, INSTALL_STATUS_CORRUPTED)
+        self.lbl_replace_hint.setVisible(show_hint)
         self._sync_radio_enabled()
 
     def _sync_radio_enabled(self):
@@ -584,6 +599,10 @@ class SettingsWindow(QWidget):
         self.chk_auto_update.setChecked(self.settings["general"].get("auto_check_update", True))
         self.chk_auto_update.blockSignals(False)
 
+        self.chk_close_warn.blockSignals(True)
+        self.chk_close_warn.setChecked(not self.settings["general"].get("suppress_close_confirm", False))
+        self.chk_close_warn.blockSignals(False)
+
         self._sync_theme_enabled()
         apply_style(style)
         apply_theme(theme)
@@ -701,6 +720,10 @@ class SettingsWindow(QWidget):
 
     def on_auto_update_toggled(self, checked):
         self.settings["general"]["auto_check_update"] = checked
+        save_settings(self.settings)
+
+    def on_close_warn_toggled(self, checked):
+        self.settings["general"]["suppress_close_confirm"] = not checked
         save_settings(self.settings)
 
     def _do_shortcut(self, kind, checked, checkbox):
