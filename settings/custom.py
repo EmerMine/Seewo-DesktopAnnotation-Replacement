@@ -27,7 +27,7 @@ class CustomSettingsWindow(QWidget):
         self._init_ui = True
 
         txt_path = QLineEdit()
-        txt_path.setPlaceholderText("请选择可执行程序路径")
+        txt_path.setPlaceholderText("请输入可执行程序路径")
         txt_path.setText(self.settings["custom"].get("exe_path", ""))
         txt_path.editingFinished.connect(self._on_path_edited)
 

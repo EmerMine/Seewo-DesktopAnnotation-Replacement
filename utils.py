@@ -201,13 +201,18 @@ def get_base_dir():
         return os.path.dirname(os.path.abspath(__file__))
 
 
-LOCAL_APPS_EXE = os.path.join(get_base_dir(), "apps", _APPS_EXE_NAME)
-
-
 def get_data_dir():
-    cwd = os.getcwd()
-    internal = os.path.join(cwd, "_internal")
-    return internal if os.path.isdir(internal) else cwd
+    if getattr(sys, 'frozen', False):
+        base = os.path.dirname(sys.executable)
+        internal = os.path.join(base, "_internal")
+        return internal if os.path.isdir(internal) else base
+    else:
+        cwd = os.getcwd()
+        internal = os.path.join(cwd, "_internal")
+        return internal if os.path.isdir(internal) else cwd
+
+
+LOCAL_APPS_EXE = os.path.join(get_data_dir(), "apps", _APPS_EXE_NAME)
 
 
 def get_config_path():
