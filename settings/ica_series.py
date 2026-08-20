@@ -26,7 +26,7 @@ _EXEC_EXTENSIONS = (".exe", ".pif", ".com", ".bat", ".cmd")
 _EXEC_FILE_FILTER = "程序文件 (*.exe *.pif *.com *.bat *.cmd);;所有文件 (*.*)"
 
 _WINDOW_TITLE_RE = re.compile(r'^Ink Canvas .+ 画板$')
-_WINDOW_TITLE_EXCLUDE = "Ink Canvas Plus 画板"
+_WINDOW_TITLE_EXCLUDE = ["Ink Canvas Plus 画板", "InkCanvasForClass-Remastered"]
 # 窗口标题精确匹配项（严格等于）
 _WINDOW_TITLE_STRICT = "InkCanvasforClass"
 
@@ -43,18 +43,82 @@ _SCHEME_DESCRIPTIONS = {
     ),
 }
 
+_BANNER_TEXT = {
+    "info": (
+        "<b>提示</b><br>"
+        '本程序并非完美适配所有批注软件，具体请查看本程序的<a href=https://example.com/>支持列表</a>。'
+    ),
+    "warning": (
+        "<b>警告</b><br>"
+        '不推荐在此处设置 ICC-CE。<br>'
+        '部分批注软件，如 ICA，取消收纳后出现 UI 上的问题，如：'
+        '<ul>'
+        '<li>浮动栏不能自动居中</li>'
+        '<li>笔按钮保持为蓝色高亮样式，即使未选中</li>'
+        '<li>屏幕两侧的取消收纳按钮仍然存在</li>'
+        '</ul>'
+        '这些问题可通过手动单击屏幕两侧的取消收纳按钮解决。<br>'
+        '将取消收纳方案切换为「兼容模式」，可能会解决这些问题。<br>'
+        '若问题仍然存在，请改用其它基于 ICA 的批注软件。'
+    ),
+
+}
+
+_SUPPORTED_SOFTWAERS = {
+    '<h3>支持软件列表</h3>'
+    '下列软件与本程序搭配使用最为完美：'
+    '<ul>'
+    '<li><a href="https://github.com/Dongsf119/Ink-Canvas-Artistry">Dongsf119/Ink-Canvas-Artistry</a></li>'
+    '<li><a href="https://github.com/Huchangzhi/Ink-Canvas-Artistry-hcz">Huchangzhi/Ink-Canvas-Artistry-hcz</a></li>'
+    '<li><a href="https://github.com/MiraEvo/Ink-Canvas-Artistry">MiraEvo/Ink-Canvas-Artistry</a></li>'
+    '<li><a href="https://github.com/DaleGreen123/Ink-Canvas-DeepRethink">DaleGreen123/Ink-Canvas-DeepRethink</a></li>'
+    '<li><a href="https://github.com/MKStoler1024/InkCanvasforDrawing">MKStoler1024/InkCanvasforDrawing</a></li>'
+    '<li><a href="https://github.com/Tayasui-rainnya/Ink-Canvas-Artistry"> Tayasui-rainnya/Ink-Canvas-Artistry</a></li>'
+    '<li><a href="https://github.com/TomKe123/Ink-Canvas-Artistry">TomKe123/Ink-Canvas-Artistry</a></li>'
+    '<li><a href="https://github.com/awesome-iwb/icc-20240610-stable">awesome-iwb/icc-20240610-stable</a> 请注意您可能无法访问</li>'
+    '<li><a href="https://github.com/InkCanvasForClass/community">InkCanvasForClass/community</a></li>'
+    '</ul>'
+    '下列软件与本程序搭配使用时，存在一些已知问题：'
+    '<ul>'
+    '<li><a href="https://github.com/InkCanvas/Ink-Canvas-Artistry">InkCanvas/Ink-Canvas-Artistry</a></li>'
+    '<li><a href="https://github.com/BaiYang2238/Ink-Canvas-Better">BaiYang2238/Ink-Canvas-Better</a></li>'
+    '<li><a href="https://github.com/jizilin6732/Ink-Canvas-Attention">jizilin6732/Ink-Canvas-Attention</a></li>'
+    '<li><a href="https://github.com/pigeons2023/Ink-Canvas-Basic">pigeons2023/Ink-Canvas-Basic</a></li>'
+    '</ul>'
+    '已知问题：'
+    '<ul>'
+    '<li>浮动栏不能自动居中</li>'
+    '<li>笔按钮保持为蓝色高亮样式，即使未选中</li>'
+    '<li>屏幕两侧的取消收纳按钮仍然存在</li>'
+    '</ul>'
+    '本程序不对下列软件提供支持：'
+    '<ul>'
+    '<li><a href="https://github.com/WXRIW/Ink-Canvas">WXRIW/Ink-Canvas</a></li>'
+    '<li><a href="https://github.com/clover-yan/Ink-Canvas-Plus">clover-yan/Ink-Canvas-Plus</a></li>'
+    '<li><a href="https://github.com/LiuYan-xwx/InkCanvasForClass-Remastered">LiuYan-xwx/InkCanvasForClass-Remastered</a></li>'
+    '</ul>'
+}
+
 def _make_banner(parent, margin_top=8):
     frame = QFrame(parent)
+    btn_close = QPushButton("×", frame)
+    btn_close.setCursor(Qt.PointingHandCursor) # type: ignore
+    btn_close.setFlat(True)
+    btn_close.setFixedSize(20, 20)
+    btn_close.setToolTip("关闭此提示")
     text = QLabel(frame)
     text.setTextFormat(Qt.RichText) # type: ignore
     text.setWordWrap(True)
+    text.setOpenExternalLinks(True)
     icon = QLabel(frame)
     layout = QHBoxLayout(frame)
-    layout.setContentsMargins(10, margin_top, 10, 8)
+    layout.setContentsMargins(10, margin_top, 6, 8)
     layout.addWidget(icon, 0, Qt.AlignTop) # type: ignore
     layout.addSpacing(6)
     layout.addWidget(text, 1)
-    return frame, text, icon
+    layout.addSpacing(2)
+    layout.addWidget(btn_close, 0, Qt.AlignTop | Qt.AlignRight) # type: ignore
+    return frame, text, icon, btn_close
 
 
 def detect_ica_windows():
@@ -83,7 +147,7 @@ def detect_ica_windows():
         title = buf.value
         matched = (
             title == _WINDOW_TITLE_STRICT
-            or (title != _WINDOW_TITLE_EXCLUDE and _WINDOW_TITLE_RE.match(title))
+            or (title not in _WINDOW_TITLE_EXCLUDE and _WINDOW_TITLE_RE.match(title))
         )
         if matched and title not in seen_titles:
             seen_titles.add(title)
@@ -196,11 +260,13 @@ class ICASettingsWindow(QWidget):
         is_win11 = _is_win11()
         self._banner_border_radius = "6px" if is_win11 else "0px"
 
-        self.info_frame, self.info_text, self.info_icon = _make_banner(self)
+        self.info_frame, self.info_text, self.info_icon, self.info_close_btn = _make_banner(self)
+        self.info_close_btn.clicked.connect(lambda: self._on_banner_closed("info"))
         self._apply_info_banner_style()
 
-        self.warning_frame, self.warning_text, self.warning_icon = _make_banner(self)
-        self.warning_text.setText("<b>警告占位符</b><br>[此处填写警告内容]")
+        self.warning_frame, self.warning_text, self.warning_icon, self.warning_close_btn = _make_banner(self)
+        self.warning_close_btn.clicked.connect(lambda: self._on_banner_closed("warning"))
+        self.warning_text.setText(_BANNER_TEXT.get("warning", ""))
         self._apply_warning_banner_style()
 
         btn_new = QPushButton("新建")
@@ -223,11 +289,17 @@ class ICASettingsWindow(QWidget):
         self.tabs.currentChanged.connect(self._on_tab_changed)
         self._build_tabs()
 
+        btn_support_list = QPushButton("支持列表")
+        btn_support_list.setFixedWidth(80)
+        btn_support_list.clicked.connect(self._on_support_list_clicked)
+        self.btn_support_list = btn_support_list
+
         btn_close = QPushButton("关闭")
         btn_close.setFixedWidth(80)
         btn_close.clicked.connect(self.close)
 
         bottom_layout = QHBoxLayout()
+        bottom_layout.addWidget(btn_support_list)
         bottom_layout.addStretch()
         bottom_layout.addWidget(btn_close)
 
@@ -241,6 +313,8 @@ class ICASettingsWindow(QWidget):
         self.setLayout(main_layout)
 
         QApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed) # type: ignore
+
+        self._apply_banner_closed_state()
 
         self._init_ui = False
         self._refresh_tab_labels()
@@ -332,10 +406,11 @@ class ICASettingsWindow(QWidget):
         )
         self.info_text.setStyleSheet(f"color: {fg}; font-size: 9pt;")
         self.info_icon.setPixmap(icon.pixmap(16, 16))
-        self.info_text.setText(
-            "<b>提示</b><br>"
-            '本设置支持同时兼容 <b>"Dongsf119/Ink-Canvas-Artistry"</b> 与 '
-            '<b>"InkCanvas/Ink-Canvas-Artistry"</b> 两个版本。'
+        self.info_text.setText(_BANNER_TEXT.get("info", ""))
+        self.info_close_btn.setStyleSheet(
+            f"QPushButton {{ color: {fg}; background: transparent; border: none; "
+            f"font-size: 14pt; font-weight: bold; padding: 0px; }}"
+            f"QPushButton:hover {{ color: #ff5555; }}"
         )
 
     def _apply_warning_banner_style(self):
@@ -350,7 +425,33 @@ class ICASettingsWindow(QWidget):
         )
         self.warning_text.setStyleSheet(f"color: {fg}; font-size: 9pt;")
         self.warning_icon.setPixmap(icon.pixmap(16, 16))
+        self.warning_text.setText(_BANNER_TEXT.get("warning", ""))
+        self.warning_close_btn.setStyleSheet(
+            f"QPushButton {{ color: {fg}; background: transparent; border: none; "
+            f"font-size: 14pt; font-weight: bold; padding: 0px; }}"
+            f"QPushButton:hover {{ color: #ff5555; }}"
+        )
 
+    def _apply_banner_closed_state(self):
+        """根据配置文件中记录的关闭状态，决定是否隐藏横幅。"""
+        closed = self.settings.get("ica_banner_closed", {})
+        if closed.get("info", False):
+            self.info_frame.hide()
+        if closed.get("warning", False):
+            self.warning_frame.hide()
+
+    def _on_banner_closed(self, banner_type):
+        """用户点击横幅关闭按钮时：隐藏横幅并持久化状态。"""
+        closed = self.settings.setdefault("ica_banner_closed", {})
+        closed[banner_type] = True
+        if banner_type == "info":
+            self.info_frame.hide()
+        elif banner_type == "warning":
+            self.warning_frame.hide()
+        try:
+            save_settings(self.settings)
+        except Exception as e:
+            _log(f"_on_banner_closed ({banner_type}): save failed: {e}", level="error")
     # ---------- tab management ----------
 
     def _build_tabs(self):
@@ -636,6 +737,25 @@ class ICASettingsWindow(QWidget):
                 )
             return False
         return True
+
+    def _on_support_list_clicked(self):
+        """左下角「支持列表」按钮：使用 Qt 默认提示框组件展示支持软件清单。"""
+        try:
+            content_html = next(iter(_SUPPORTED_SOFTWAERS))
+        except StopIteration:
+            content_html = ""
+        box = QMessageBox(self)
+        box.setWindowTitle("希沃批注替换")
+        box.setWindowIcon(QIcon(get_icon_path()))
+        box.setIcon(QMessageBox.Information) # type: ignore
+        box.setTextFormat(Qt.RichText) # type: ignore
+        box.setText(content_html)
+        # 让 QMessageBox 拥有合理的默认最小尺寸，适配较长的 HTML 列表
+        try:
+            box.setMinimumSize(560, 480)
+        except Exception:
+            pass
+        box.exec() # type: ignore
 
     def _on_browse_clicked(self):
         page = self._current_page()

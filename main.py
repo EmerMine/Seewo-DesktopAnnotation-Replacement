@@ -88,18 +88,32 @@ def main():
         msg_box.setText(
             "<h3>欢迎</h3>"
             "<p>欢迎使用「希沃批注替换」！</p>"
-            "<p>使用本程序前，建议在您的计算机上安装以下软件，以替换希沃桌面批注：</p>"
-            "<ul>"
-            "<li><a href='https://github.com/InkCanvasForClass/community'>InkCanvasForClass Community Edition</a> 1.7.18.7+</li>"
-            "<li><a href='https://github.com/Dongsf119/Ink-Canvas-Artistry'>Dongsf119/Ink-Canvas-Artistry</a> 任意版本</li>"
-            "</ul>"
-            "<p>您也可以安装以下任意软件，但体验欠佳，并且有已知的 bug：</p>"
-            "<ul>"
-            "<li><a href='https://github.com/InkCanvas/Ink-Canvas-Artistry'>InkCanvas/Ink-Canvas-Artistry</a> 任意版本</li>"
-            "<li><a href='https://github.com/BaiYang2238/Ink-Canvas-Better'>Ink Canvas Better</a> 任意版本</li>"
-            "<li><a href='https://github.com/InkCanvas/InkCanvasForClass'>InkCanvasForClass</a> 任意版本</li>"
-            "</ul>"
-            "<p>不安装以上任意一款软件，您仍然可以使用本程序的「禁用希沃桌面批注」功能。</p>"
+            '下列软件与本程序搭配使用最为完美：'
+            '<ul>'
+            '<li><a href="https://github.com/Dongsf119/Ink-Canvas-Artistry">Dongsf119/Ink-Canvas-Artistry</a></li>'
+            '<li><a href="https://github.com/Huchangzhi/Ink-Canvas-Artistry-hcz">Huchangzhi/Ink-Canvas-Artistry-hcz</a></li>'
+            '<li><a href="https://github.com/MiraEvo/Ink-Canvas-Artistry">MiraEvo/Ink-Canvas-Artistry</a></li>'
+            '<li><a href="https://github.com/DaleGreen123/Ink-Canvas-DeepRethink">DaleGreen123/Ink-Canvas-DeepRethink</a></li>'
+            '<li><a href="https://github.com/MKStoler1024/InkCanvasforDrawing">MKStoler1024/InkCanvasforDrawing</a></li>'
+            '<li><a href="https://github.com/Tayasui-rainnya/Ink-Canvas-Artistry"> Tayasui-rainnya/Ink-Canvas-Artistry</a></li>'
+            '<li><a href="https://github.com/TomKe123/Ink-Canvas-Artistry">TomKe123/Ink-Canvas-Artistry</a></li>'
+            '<li><a href="https://github.com/awesome-iwb/icc-20240610-stable">awesome-iwb/icc-20240610-stable</a> 请注意您可能无法访问</li>'
+            '<li><a href="https://github.com/InkCanvasForClass/community">InkCanvasForClass/community</a></li>'
+            '</ul>'
+            '下列软件与本程序搭配使用时，存在一些已知问题：'
+            '<ul>'
+            '<li><a href="https://github.com/InkCanvas/Ink-Canvas-Artistry">InkCanvas/Ink-Canvas-Artistry</a></li>'
+            '<li><a href="https://github.com/BaiYang2238/Ink-Canvas-Better">BaiYang2238/Ink-Canvas-Better</a></li>'
+            '<li><a href="https://github.com/jizilin6732/Ink-Canvas-Attention">jizilin6732/Ink-Canvas-Attention</a></li>'
+            '<li><a href="https://github.com/pigeons2023/Ink-Canvas-Basic">pigeons2023/Ink-Canvas-Basic</a></li>'
+            '</ul>'
+            '本程序不对下列软件提供支持：'
+            '<ul>'
+            '<li><a href="https://github.com/WXRIW/Ink-Canvas">WXRIW/Ink-Canvas</a></li>'
+            '<li><a href="https://github.com/clover-yan/Ink-Canvas-Plus">clover-yan/Ink-Canvas-Plus</a></li>'
+            '<li><a href="https://github.com/LiuYan-xwx/InkCanvasForClass-Remastered">LiuYan-xwx/InkCanvasForClass-Remastered</a></li>'
+            '</ul>'
+            "<p>不安装以上任意一款软件，您仍然可以使用本程序的「禁用希沃桌面批注」功能，或是使用自定义程序。</p>"
             "<p>您可以单击上方链接前往 Github 下载。</p>"
         )
         msg_box.exec()
