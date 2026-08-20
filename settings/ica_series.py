@@ -57,8 +57,8 @@ def _make_banner(parent, margin_top=8):
     return frame, text, icon
 
 
-def detect_ica_window_titles():
-    """枚举当前所有可见顶层窗口，返回符合 ICA 标题格式的列表。
+def detect_ica_windows():
+    """枚举当前所有可见顶层窗口，返回符合 ICA 标题格式的 ``(title, hwnd)`` 列表。
 
     匹配规则：
       1. 标题严格等于 ``InkCanvasforClass``（精确匹配）
@@ -70,6 +70,7 @@ def detect_ica_window_titles():
 
     user32 = ctypes.windll.user32
     results = []
+    seen_titles = set()
 
     def _enum_cb(hwnd, _lparam):
         if not user32.IsWindowVisible(hwnd):
@@ -84,13 +85,47 @@ def detect_ica_window_titles():
             title == _WINDOW_TITLE_STRICT
             or (title != _WINDOW_TITLE_EXCLUDE and _WINDOW_TITLE_RE.match(title))
         )
-        if matched and title not in results:
-            results.append(title)
+        if matched and title not in seen_titles:
+            seen_titles.add(title)
+            results.append((title, hwnd))
         return True
 
     CMPFUNC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
     user32.EnumWindows(CMPFUNC(_enum_cb), 0)
     return results
+
+
+def _get_exe_path_from_hwnd(hwnd):
+    """通过窗口句柄获取对应进程的可执行文件路径。
+
+    流程：hwnd → GetWindowThreadProcessId 得到 PID → OpenProcess
+    → QueryFullProcessImageNameW 得到可执行文件完整路径。
+    失败时返回空字符串。
+    """
+    if not sys.platform.startswith("win"):
+        return ""
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    pid = ctypes.c_uint32(0)
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if pid.value == 0:
+        return ""
+
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    if not handle:
+        return ""
+
+    try:
+        buf = ctypes.create_unicode_buffer(260)
+        size = ctypes.c_uint32(260)
+        if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
+            return buf.value
+        return ""
+    finally:
+        kernel32.CloseHandle(handle)
 
 
 class SelectWindowTitleDialog(QDialog):
@@ -208,6 +243,7 @@ class ICASettingsWindow(QWidget):
         QApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed) # type: ignore
 
         self._init_ui = False
+        self._refresh_tab_labels()
         self.resize(520, 480)
 
     def _ensure_profiles(self):
@@ -282,6 +318,7 @@ class ICASettingsWindow(QWidget):
         self._apply_info_banner_style()
         self._apply_warning_banner_style()
         self._update_scheme_desc_style()
+        self._update_autofill_hints_style()
 
     def _apply_info_banner_style(self):
         is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
@@ -329,6 +366,16 @@ class ICASettingsWindow(QWidget):
     def _create_tab_page(self, profile):
         page = QWidget(self.tabs)
 
+        # ---- 自动填充 ----
+        btn_autofill = QPushButton("自动填充", page)
+        btn_autofill.clicked.connect(lambda: self._on_detect_clicked())
+
+        lbl_autofill_hint = QLabel("请开启批注软件后单击该按钮，可自动填充软件路径，窗口标题及方案标题。", page)
+
+        autofill_row = QHBoxLayout()
+        autofill_row.addWidget(btn_autofill)
+        autofill_row.addStretch()
+
         # ---- 软件路径 ----
         txt_path = QLineEdit(page)
         txt_path.setPlaceholderText(f"请选择批注软件的可执行程序路径")
@@ -363,13 +410,9 @@ class ICASettingsWindow(QWidget):
         txt_title.setText(profile.get("window_title", ""))
         txt_title.editingFinished.connect(lambda: self._on_title_edited())
 
-        btn_detect = QPushButton("检测", page)
-        btn_detect.clicked.connect(lambda: self._on_detect_clicked())
-
         title_row_inner = QHBoxLayout()
         title_row_inner.addWidget(QLabel("窗口标题："))
         title_row_inner.addWidget(txt_title, 1)
-        title_row_inner.addWidget(btn_detect)
 
         title_container = QWidget(page)
         title_ly = QHBoxLayout(title_container)
@@ -401,6 +444,8 @@ class ICASettingsWindow(QWidget):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(9, 9, 9, 9)
         layout.setSpacing(8)
+        layout.addLayout(autofill_row)
+        layout.addWidget(lbl_autofill_hint)
         layout.addLayout(path_row)
         layout.addLayout(scope_row)
         layout.addWidget(title_container)
@@ -409,15 +454,17 @@ class ICASettingsWindow(QWidget):
         layout.addWidget(chk_auto_pen)
         layout.addStretch()
 
-        page._txt_path = txt_path
-        page._title_container = title_container
-        page._txt_title = txt_title
-        page._cmb_scope = cmb_scope
-        page._cmb_scheme = cmb_scheme
-        page._lbl_scheme_desc = lbl_scheme_desc
-        page._chk_auto_pen = chk_auto_pen
+        page._txt_path = txt_path # type: ignore
+        page._title_container = title_container # type: ignore
+        page._txt_title = txt_title # type: ignore
+        page._cmb_scope = cmb_scope # type: ignore
+        page._cmb_scheme = cmb_scheme # type: ignore
+        page._lbl_scheme_desc = lbl_scheme_desc # type: ignore
+        page._chk_auto_pen = chk_auto_pen # type: ignore
+        page._lbl_autofill_hint = lbl_autofill_hint # type: ignore
         self._apply_scope_visibility(page)
         self._update_scheme_desc_for(page)
+        self._update_autofill_hint_for(page)
         return page
 
     def _apply_scope_visibility(self, page):
@@ -429,6 +476,25 @@ class ICASettingsWindow(QWidget):
             # 局部模式：向内缩进 20px 以体现与「软件快捷键作用范围」的从属关系
             page._title_container.layout().setContentsMargins(20, 0, 0, 0)
             page._title_container.show()
+
+    def _refresh_tab_labels(self):
+        """刷新所有标签页标题：当前选中的标签显示「(当前启用)」后缀。
+
+        仅影响标签页显示文字，不修改存储的方案名称。
+        """
+        saved = self._init_ui
+        self._init_ui = True
+        try:
+            profiles = self.settings["ica_series"]["ica_profiles"]
+            active_idx = self.tabs.currentIndex()
+            for i in range(self.tabs.count()):
+                if i >= len(profiles):
+                    continue
+                name = profiles[i].get("name", f"方案 {i+1}")
+                label = f"{name} (当前启用)" if i == active_idx else name
+                self.tabs.setTabText(i, label)
+        finally:
+            self._init_ui = saved
 
     # ---------- helpers ----------
 
@@ -454,11 +520,11 @@ class ICASettingsWindow(QWidget):
         profile = self._current_profile()
         if page is None or profile is None:
             return
-        profile["exe_path"] = page._txt_path.text().strip()
-        profile["window_title"] = page._txt_title.text().strip()
-        profile["shortcut_scope"] = page._cmb_scope.currentData()
-        profile["unhide_scheme"] = page._cmb_scheme.currentData()
-        profile["auto_pen"] = page._chk_auto_pen.isChecked()
+        profile["exe_path"] = page._txt_path.text().strip() # type: ignore
+        profile["window_title"] = page._txt_title.text().strip() # type: ignore
+        profile["shortcut_scope"] = page._cmb_scope.currentData() # type: ignore
+        profile["unhide_scheme"] = page._cmb_scheme.currentData() # type: ignore
+        profile["auto_pen"] = page._chk_auto_pen.isChecked() # type: ignore
         try:
             save_settings(self.settings)
         except Exception as e:
@@ -480,6 +546,17 @@ class ICASettingsWindow(QWidget):
         for i in range(self.tabs.count()):
             self._update_scheme_desc_for(self.tabs.widget(i))
 
+    def _update_autofill_hint_for(self, page):
+        is_dark = QApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark # type: ignore
+        hint_color = "#b0b0b0" if is_dark else "gray"
+        page._lbl_autofill_hint.setStyleSheet(f"color: {hint_color}; font-size: 9pt;")
+
+    def _update_autofill_hints_style(self):
+        for i in range(self.tabs.count()):
+            page = self.tabs.widget(i)
+            if page is not None:
+                self._update_autofill_hint_for(page)
+
     # ---------- slots ----------
 
     def _on_tab_changed(self, _idx):
@@ -489,6 +566,7 @@ class ICASettingsWindow(QWidget):
         if profile is not None:
             self.settings["ica_series"]["ica_active_profile_id"] = profile["id"]
         save_settings(self.settings)
+        self._refresh_tab_labels()
 
     def _on_scope_changed(self):
         if self._init_ui:
@@ -504,7 +582,7 @@ class ICASettingsWindow(QWidget):
             return
         page = self._current_page()
         if page is not None:
-            path = page._txt_path.text().strip()
+            path = page._txt_path.text().strip() # type: ignore
             if path and not self._validate_exe_path(path, show_warning=True):
                 return
         self._mark_current_dirty()
@@ -563,7 +641,7 @@ class ICASettingsWindow(QWidget):
         page = self._current_page()
         if page is None:
             return
-        start_dir = os.path.dirname(page._txt_path.text()) if page._txt_path.text() else ""
+        start_dir = os.path.dirname(page._txt_path.text()) if page._txt_path.text() else "" # type: ignore
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "选择批注软件可执行程序",
@@ -574,7 +652,7 @@ class ICASettingsWindow(QWidget):
             return
         if not self._validate_exe_path(file_path, show_warning=True):
             return
-        page._txt_path.setText(file_path)
+        page._txt_path.setText(file_path) # type: ignore
         self._mark_current_dirty()
         self._save_current_profile()
 
@@ -586,7 +664,7 @@ class ICASettingsWindow(QWidget):
             )
             return
         try:
-            titles = detect_ica_window_titles()
+            windows = detect_ica_windows()
         except Exception as e:
             QMessageBox.critical(
                 self, "希沃批注替换",
@@ -598,26 +676,50 @@ class ICASettingsWindow(QWidget):
         if page is None:
             return
 
-        if not titles:
+        if not windows:
             QMessageBox.information(
                 self, "希沃批注替换",
                 "未检测到符合条件的批注软件窗口。\n"
-                "请先启动 Ink Canvas Artistry 再重试。"
+                "请先启动批注软件后再重试。"
             )
             return
-        if len(titles) == 1:
-            page._txt_title.setText(titles[0])
-            self._mark_current_dirty()
-            self._save_current_profile()
-            return
 
-        dialog = SelectWindowTitleDialog(titles, self)
-        if dialog.exec() == QDialog.Accepted:
-            selected = dialog.selected_title()
-            if selected:
-                page._txt_title.setText(selected)
-                self._mark_current_dirty()
-                self._save_current_profile()
+        if len(windows) == 1:
+            title, hwnd = windows[0]
+        else:
+            titles = [w[0] for w in windows]
+            dialog = SelectWindowTitleDialog(titles, self)
+            if dialog.exec() == QDialog.Accepted: # type: ignore
+                selected = dialog.selected_title()
+                if not selected:
+                    return
+                hwnd = None
+                for t, h in windows:
+                    if t == selected:
+                        title, hwnd = t, h
+                        break
+                if hwnd is None:
+                    return
+            else:
+                return
+
+        # 填充窗口标题
+        page._txt_title.setText(title) # type: ignore
+
+        # 通过窗口句柄获取可执行文件路径并填充
+        exe_path = _get_exe_path_from_hwnd(hwnd)
+        if exe_path:
+            page._txt_path.setText(exe_path) # type: ignore
+
+        # 自动重命名当前方案为检测到的窗口标题（去除「 画板」后缀）
+        scheme_name = title.replace(" 画板", "")
+        profile = self._current_profile()
+        if profile is not None and scheme_name:
+            profile["name"] = scheme_name
+
+        self._mark_current_dirty()
+        self._save_current_profile()
+        self._refresh_tab_labels()
 
     def _on_scheme_changed(self):
         if self._init_ui:
@@ -672,6 +774,7 @@ class ICASettingsWindow(QWidget):
         profile["name"] = name
         self._new_unmodified_ids.discard(profile.get("id"))
         save_settings(self.settings)
+        self._refresh_tab_labels()
 
     def _delete_profile(self):
         if self.tabs.count() <= 1:
@@ -702,3 +805,4 @@ class ICASettingsWindow(QWidget):
         new_idx = min(idx, self.tabs.count() - 1)
         self.settings["ica_series"]["ica_active_profile_id"] = self.settings["ica_series"]["ica_profiles"][new_idx]["id"]
         save_settings(self.settings)
+        self._refresh_tab_labels()
