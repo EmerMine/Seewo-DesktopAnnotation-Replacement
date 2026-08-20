@@ -8,6 +8,7 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/EmerMine/Seewo-DesktopAnnotation-Replacement)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/EmerMine/Seewo-DesktopAnnotation-Replacement/build.yml)
 ![GitHub issues](https://img.shields.io/github/issues/EmerMine/Seewo-DesktopAnnotation-Replacement)
+![GitHub Release](https://img.shields.io/github/v/release/EmerMine/Seewo-DesktopAnnotation-Replacement)
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/EmerMine/Seewo-DesktopAnnotation-Replacement/total)
 ![GitHub Repo stars](https://img.shields.io/github/stars/EmerMine/Seewo-DesktopAnnotation-Replacement?style=flat)
 
