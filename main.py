@@ -97,7 +97,7 @@ def main():
             '<li><a href="https://github.com/MKStoler1024/InkCanvasforDrawing">MKStoler1024/InkCanvasforDrawing</a></li>'
             '<li><a href="https://github.com/Tayasui-rainnya/Ink-Canvas-Artistry"> Tayasui-rainnya/Ink-Canvas-Artistry</a></li>'
             '<li><a href="https://github.com/TomKe123/Ink-Canvas-Artistry">TomKe123/Ink-Canvas-Artistry</a></li>'
-            '<li><a href="https://github.com/awesome-iwb/icc-20240610-stable">awesome-iwb/icc-20240610-stable</a> 请注意您可能无法访问</li>'
+            '<li><a href="https://github.com/awesome-iwb/icc-20240610-stable">awesome-iwb/icc-20240610-stable</a> 请注意您可能无法访问该链接</li>'
             '<li><a href="https://github.com/InkCanvasForClass/community">InkCanvasForClass/community</a></li>'
             '</ul>'
             '下列软件与本程序搭配使用时，存在一些已知问题：'
