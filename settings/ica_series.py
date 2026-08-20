@@ -196,7 +196,7 @@ class SelectWindowTitleDialog(QDialog):
     """多窗口标题候选时的选择对话框"""
     def __init__(self, titles, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("选择批注软件窗口标题")
+        self.setWindowTitle("选择批注软件窗口标题 - 希沃批注替换")
         self.setWindowIcon(QIcon(get_icon_path()))
         self.setWindowFlags(self.windowFlags() | Qt.Window) # type: ignore
         self._selected = None
@@ -479,7 +479,7 @@ class ICASettingsWindow(QWidget):
 
         # ---- 软件路径 ----
         txt_path = QLineEdit(page)
-        txt_path.setPlaceholderText(f"请选择批注软件的可执行程序路径")
+        txt_path.setPlaceholderText(f"请输入批注软件的可执行程序路径")
         txt_path.setText(profile.get("exe_path", ""))
         txt_path.editingFinished.connect(lambda: self._on_path_edited())
 
