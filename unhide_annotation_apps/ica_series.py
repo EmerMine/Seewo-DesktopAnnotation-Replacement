@@ -467,10 +467,10 @@ def run():
                 _send_alt_key(_VK_Q)
         elif unhide_scheme == "scheme2":
             _send_alt_key(_VK_B)
-            _precise_sleep(0.1)
+            _precise_sleep(0.25)
             _send_alt_key(_VK_B)
             if auto_pen:
-                _precise_sleep(0.1)
+                # _precise_sleep(0.1)
                 _send_alt_key(_VK_D)
         else:
             _log(f"ica_series.run: unknown unhide_scheme: '{unhide_scheme}'",

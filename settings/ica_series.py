@@ -33,11 +33,13 @@ _WINDOW_TITLE_STRICT = "InkCanvasforClass"
 _SCHEME_DESCRIPTIONS = {
     "scheme1": (
         '<b>推荐模式说明：</b>自动按下 <code>Alt + D</code> 显示浮动栏并进入批注模式，<br>'
-        '再按下 <code>Alt + Q</code> 退出批注模式（若未勾选「自动切换到笔」选项）'
+        '再按下 <code>Alt + Q</code> 退出批注模式（若未勾选「自动切换到笔」选项）<br>'
+        '几乎无感，建议使用此方案，若批注软件出现 Bug，请改用「兼容模式」'
     ),
     "scheme2": (
         "<b>兼容模式说明：</b>自动按下两次 <code>Alt + B</code> 进入并退出画板，<br>"
-        '再按下 <code>Alt + D</code> 进入批注模式（若已勾选「自动切换到笔」选项）'
+        '再按下 <code>Alt + D</code> 进入批注模式（若已勾选「自动切换到笔」选项）<br>'
+        '会闪过 0.25s 画板界面，请优先使用「推荐模式」'
     ),
 }
 
@@ -206,7 +208,7 @@ class ICASettingsWindow(QWidget):
         QApplication.styleHints().colorSchemeChanged.connect(self._on_color_scheme_changed) # type: ignore
 
         self._init_ui = False
-        self.resize(520, 460)
+        self.resize(520, 480)
 
     def _ensure_profiles(self):
         """确保 ica_series 分类下有合法的 ica_profiles 列表与 active_profile_id。
