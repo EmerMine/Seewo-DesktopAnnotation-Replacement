@@ -414,10 +414,13 @@ def run():
             is_fold, _cfg_status = _read_is_fold_at_startup(exe_path)
 
             if is_fold is False:
-                # isFoldAtStartup = false → 等进程就绪，不再执行取消收纳
+                # isFoldAtStartup = false → 等进程就绪，如果不用切换到笔，那么不再执行取消收纳
                 _log("ica_series.run: isFoldAtStartup=false; waiting process ready then exiting")
                 ok = _wait_process_ready(proc_name, timeout_s=5.0)
                 _log(f"ica_series.run: process ready after launch={ok} (isFoldAtStartup=false)")
+                if not auto_pen:
+                    _log("ica_series.run: auto_pen=false; skipping unhide step and exiting")
+                    return 0  # 不切换到笔 → 直接退出
 
             # isFoldAtStartup = true 或 配置缺失/异常 → 按收纳流程走：展示加载窗口
             # --- 2.3.a/b/c 加载窗口：显示 1 秒 → 关闭 → 确认关闭 ---
@@ -459,20 +462,18 @@ def run():
     # ================= 4. 取消收纳方案 =================
     _log(f"ica_series.run: executing unhide scheme '{unhide_scheme}' (auto_pen={auto_pen})")
     try:
-        if not running_before:
-            _precise_sleep(0.3)
         if unhide_scheme == "scheme1":
             _send_alt_key(_VK_D)
             if not auto_pen:
                 _precise_sleep(0.1)
                 _send_alt_key(_VK_Q)
         elif unhide_scheme == "scheme2":
-            if not running_before:
+            if running_before:
                 _send_alt_key(_VK_B)
-                _precise_sleep(0.25)
+                _precise_sleep(0.3)
                 _send_alt_key(_VK_B)
             if auto_pen:
-                # _precise_sleep(0.1)
+                _precise_sleep(0.1)
                 _send_alt_key(_VK_D)
         else:
             _log(f"ica_series.run: unknown unhide_scheme: '{unhide_scheme}'",
