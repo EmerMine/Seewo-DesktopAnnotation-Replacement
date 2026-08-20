@@ -43,7 +43,6 @@
 下列软件与本程序搭配使用时，存在一些已知问题：
 
 - [InkCanvas/Ink-Canvas-Artistry](https://github.com/InkCanvas/Ink-Canvas-Artistry)
-
 - [BaiYang2238/Ink-Canvas-Better](https://github.com/BaiYang2238/Ink-Canvas-Better)
 - [jizilin6732/Ink-Canvas-Attention](https://github.com/jizilin6732/Ink-Canvas-Attention)
 - [pigeons2023/Ink-Canvas-Basic](https://github.com/pigeons2023/Ink-Canvas-Basic)
