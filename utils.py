@@ -141,7 +141,7 @@ _da_cfg = _config.get("desktop_annotation", {})
 DESKTOP_ANNOTATION_DIR = _da_cfg.get("dir", r"C:\Program Files (x86)\Seewo\MiniApps\DesktopAnnotation")
 _DESKTOP_ANNOTATION_EXE_NAME = _da_cfg.get("exe_name", "DesktopAnnotation.exe")
 _DESKTOP_ANNOTATION_BACKUP_NAME = _da_cfg.get("backup_name", "DesktopAnnotationBackup.exe")
-_DESKTOP_ANNOTATION_BAT_NAME = _da_cfg.get("bat_name", "Seewo-DeskopAnnotation-Replacement.ps1")
+_DESKTOP_ANNOTATION_BAT_NAME = _da_cfg.get("bat_name", "Seewo-DeskopAnnotation-Replacement.bat")
 _DA_ORIGINAL_PREFIX = os.path.splitext(_DESKTOP_ANNOTATION_EXE_NAME)[0]
 _DA_BACKUP_PREFIX = os.path.splitext(_DESKTOP_ANNOTATION_BACKUP_NAME)[0]
 _LEN_DA_PREFIX = len(_DA_ORIGINAL_PREFIX)
@@ -789,32 +789,25 @@ def _extract_exe_from_command(cmd):
 
 
 def _get_entry_command():
-    """返回写进启动脚本（.ps1）的命令字符串（供希沃调用，应直接启动批注软件）。
+    """返回写进启动脚本（.bat）的命令字符串（供希沃调用，应直接启动批注软件）。
 
-    返回值是 PowerShell 5.1 可直接执行的表达式：
-    - 打包模式：``& "C:\\...\\Annotation.exe" -run_annotation_app``
-    - 源码模式：``& "C:\\...\\pythonw.exe" "D:\\...\\main.py" -run_annotation_app``
-
-    前导 ``&`` 是 PowerShell 的调用运算符，用于显式启动被引号包围的可执行文件路径。
+    返回值是 cmd.exe 可直接执行的命令行：
+    - 打包模式：``"C:\\...\\Annotation.exe" -run_annotation_app``
+    - 源码模式：``"C:\\...\\pythonw.exe" "D:\\...\\main.py" -run_annotation_app``
     """
     base = get_base_dir()
     if getattr(sys, "frozen", False):
         exe = os.path.join(base, "Annotation.exe")
-        return f'& "{exe}" -run_annotation_app'
+        return f'"{exe}" -run_annotation_app'
     pythonw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
     main_py = os.path.join(base, "main.py")
-    return f'& "{pythonw}" "{main_py}" -run_annotation_app'
+    return f'@echo off \n"{pythonw}" "{main_py}" -run_annotation_app\nexit /b'
 
 
 def _parse_bat_entry(bat_path):
-    """从启动脚本（.ps1 或遗留 .bat）中提取入口命令的所有路径段。找不到返回空列表。
+    """从启动脚本（.bat）中提取入口命令的所有路径段。找不到返回空列表。
 
-    兼容两种语法：
-      - PowerShell .ps1：首行形如 ``& "C:\\...\\Annotation.exe" -run_annotation_app``
-      - 遗留 .bat：首行形如 ``"C:\\...\\Annotation.exe" -run_annotation_app``（被 ``@echo off`` / ``rem`` 头跳过后）
-
-    兼容 UTF-8 BOM（PowerShell 5.1 ``Set-Content -Encoding UTF8`` 默认添加）：读取后剥离
-    文件开头的 ``\\ufeff`` BOM 字符，避免其与首字符（如 ``&``）粘连导致 token 解析错误。
+    首行形如 ``"C:\\...\\Annotation.exe" -run_annotation_app``（被 ``@echo off`` / ``rem`` 头跳过后）。
 
     典型输出：
       打包模式：["C:\\...\\Annotation.exe"]
@@ -822,9 +815,9 @@ def _parse_bat_entry(bat_path):
     """
     if not os.path.exists(bat_path):
         return []
-    # 优先以 UTF-8 解码（自动剥离 BOM）；失败则回退到 mbcs（Windows ANSI）
+    # 以 UTF-8 解码；失败则回退到 mbcs（Windows ANSI）
     content = None
-    for encoding in ("utf-8-sig", "mbcs"):
+    for encoding in ("utf-8", "mbcs"):
         try:
             with open(bat_path, "r", encoding=encoding, errors="ignore") as f:
                 content = f.read()
@@ -833,20 +826,12 @@ def _parse_bat_entry(bat_path):
             continue
     if content is None:
         return []
-    # 兜底剥离可能残留的 BOM 字符（mbcs 解码时 UTF-8 BOM 会变成中文乱码）
-    if content and content[0] == '\ufeff':
-        content = content[1:]
     first_line = None
     for line in content.splitlines():
         line = line.strip()
-        # 跳过空行、bat 头、PowerShell 注释 (#)、rem 注释、BOM 残留字符
-        if not line or line.startswith("@") or line.startswith("rem") or line.startswith("#"):
+        # 跳过空行、bat 头、rem 注释
+        if not line or line.startswith("@") or line.startswith("rem"):
             continue
-        # 跳过首字符为 BOM 残留（如 '锘'）的行
-        if line.startswith('\ufeff'):
-            line = line[1:].lstrip()
-            if not line:
-                continue
         first_line = line
         break
     if not first_line:
@@ -856,8 +841,6 @@ def _parse_bat_entry(bat_path):
 
 def _split_command_paths(cmd):
     """从命令字符串中提取所有被引号包围或空格分隔的路径参数（过滤 -flag 形式的非路径 token）。
-
-    同时跳过 PowerShell 的调用运算符 ``&``（独立出现的单个 & 字符）。
     """
     paths = []
     i = 0
@@ -878,8 +861,8 @@ def _split_command_paths(cmd):
             while j < n and cmd[j] not in (' ', '\t'):
                 j += 1
             token = cmd[i:j]
-            # 跳过 PowerShell 调用运算符 & 与 -flag 形式的参数
-            if token != '&' and not token.startswith('-'):
+            # 跳过 -flag 形式的参数
+            if not token.startswith('-'):
                 paths.append(token)
             i = j
     return paths
@@ -982,12 +965,12 @@ if (-not (Test-Path -LiteralPath $ORIG_EXE)) {{
 }}
 Write-Log "[COPY] [OK] $LOCAL_EXE -> $ORIG_EXE"
 
-# --- 4. 写入启动脚本 (.ps1) ---
+# --- 4. 写入启动脚本 (.bat) ---
 Write-Log "[WRITE] [START] $LAUNCHER_FILE"
 try {{
     Set-Content -LiteralPath $LAUNCHER_FILE -Value @'
 {entry}
-'@ -Encoding UTF8
+'@ -Encoding ASCII
 }} catch {{
     Write-Log "[WRITE] [FAILED] $LAUNCHER_FILE"
     Fail 'FAILED_WRITE_LAUNCHER'
@@ -1117,7 +1100,7 @@ while ($pass -lt 10) {{
 }}
 Write-Log "[RESTORE] [DONE] count=$restoreCount passes=$pass"
 
-# --- 5. 清理启动脚本 (.ps1) ---
+# --- 5. 清理启动脚本 (.bat) ---
 if (Test-Path -LiteralPath $LAUNCHER_FILE) {{
     Write-Log "[DELETE] [START] $LAUNCHER_FILE"
     try {{
@@ -1230,7 +1213,7 @@ def get_install_diagnostics():
         ),
     })
 
-    # 6. 入口启动脚本 (.ps1)
+    # 6. 入口启动脚本 (.bat)
     has_launcher = os.path.exists(DESKTOP_ANNOTATION_BAT)
     checks.append({
         "label": "启动脚本",
@@ -1254,7 +1237,7 @@ def get_install_diagnostics():
 
 
 def install():
-    """安装：校验 → 杀进程 → 备份 → 替换 → 写启动脚本 (.ps1)。
+    """安装：校验 → 杀进程 → 备份 → 替换 → 写启动脚本 (.bat)。
 
     返回 (ok, failure_reasons)。ok 为 True 时 failure_reasons 为空列表；
     ok 为 False 时 failure_reasons 是字符串列表（每项描述一项失败检查）。
@@ -1287,7 +1270,7 @@ def install():
 
 
 def uninstall():
-    """卸载：杀进程 → 恢复原文件 → 清理启动脚本 (.ps1)。"""
+    """卸载：杀进程 → 恢复原文件 → 清理启动脚本 (.bat)。"""
     _debug_log("uninstall() called")
     _log("UNINSTALL invoked")
     kill_process_by_path(DESKTOP_ANNOTATION_BACKUP)
@@ -1485,7 +1468,7 @@ try {{
     try {{
         Set-Content -LiteralPath $LAUNCHER_FILE -Value @'
 {entry}
-'@ -Encoding UTF8
+'@ -Encoding ASCII
     }} catch {{
         Write-Log "[WRITE] [FAILED] $LAUNCHER_FILE"
         Fail 'FAILED_WRITE_LAUNCHER'

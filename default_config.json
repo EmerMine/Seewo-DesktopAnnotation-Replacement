@@ -46,7 +46,7 @@
         "dir": "C:\\Program Files (x86)\\Seewo\\MiniApps\\DesktopAnnotation",
         "exe_name": "DesktopAnnotation.exe",
         "backup_name": "DesktopAnnotationBackup.exe",
-        "bat_name": "Seewo-DeskopAnnotation-Replacement.ps1"
+        "bat_name": "Seewo-DeskopAnnotation-Replacement.bat"
     },
     "apps": {
         "exe_name": "DesktopAnnotation.exe",
