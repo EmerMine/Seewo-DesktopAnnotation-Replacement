@@ -9,7 +9,9 @@ from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QCheckBox, QTextBrowser, QDialog,
 )
-from utils import VERSION, get_icon_path, load_settings, save_settings
+from utils.config import VERSION
+from utils.paths import get_icon_path
+from utils.settings import load_settings, save_settings
 
 
 REPO_API = "https://api.github.com/repos/EmerMine/Seewo-DesktopAnnotation-Replacement/releases/latest"

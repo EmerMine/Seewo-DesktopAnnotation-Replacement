@@ -5,16 +5,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
-from utils import (
-    load_settings,
-    save_settings,
-    run_protocol,
-    get_icon_path,
-    check_icc_ce_url_protocol,
+from utils.config import (
     ICC_STATUS_OK,
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
 )
+from utils.paths import get_icon_path
+from utils.process import run_protocol
+from utils.settings import load_settings, save_settings
+from utils.icc import check_icc_ce_url_protocol
 
 
 def _show_toast(text_fields):

@@ -7,18 +7,12 @@ from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
 from settings import SettingsWindow
 from settings.update import check_for_update, check_for_update_async # type: ignore
 from unhide_annotation_apps import icc_ce, none, original, custom, ica_series
-from utils import (
-    load_settings,
-    get_install_status,
-    INSTALL_STATUS_INSTALLED,
-    INSTALL_STATUS_NOT_INSTALLED,
-    get_icon_path,
-    apply_style,
-    apply_theme,
-    _is_debug,
-    _debug_log,
-    set_debug_mode,
-)
+from utils.config import INSTALL_STATUS_INSTALLED, INSTALL_STATUS_NOT_INSTALLED
+from utils.debuglog import _is_debug, _debug_log, set_debug_mode
+from utils.paths import get_icon_path
+from utils.qtstyle import apply_style, apply_theme
+from utils.settings import load_settings
+from utils.desktop_annotation import get_install_status
 
 
 def _parse_args(argv):

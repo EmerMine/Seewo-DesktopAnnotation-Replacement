@@ -9,11 +9,8 @@ from PySide6.QtWidgets import (
     QPushButton, QCheckBox, QSpinBox, QGroupBox,
     QSpacerItem, QSizePolicy, QStyle,
 )
-from utils import (
-    get_icon_path,
-    load_settings,
-    save_settings,
-)
+from utils.paths import get_icon_path
+from utils.settings import load_settings, save_settings
 
 
 class NoneSettingsWindow(QWidget):

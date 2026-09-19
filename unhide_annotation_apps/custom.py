@@ -6,7 +6,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout
-from utils import load_settings, get_icon_path
+from utils.paths import get_icon_path
+from utils.settings import load_settings
 
 
 class LoadingWindow(QWidget):

@@ -12,13 +12,9 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QInputDialog, QFrame, QStyle,
     QDialog, QListWidget, QListWidgetItem,
 )
-from utils import (
-    get_icon_path,
-    load_settings,
-    save_settings,
-    _is_win11,
-    _log,
-)
+from utils.debuglog import _log
+from utils.paths import _is_win11, get_icon_path
+from utils.settings import load_settings, save_settings
 
 # 允许用户选择的可执行程序扩展名（与 settings/custom.py 保持一致）
 _EXEC_EXTENSIONS = (".exe", ".pif", ".com", ".bat", ".cmd")

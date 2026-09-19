@@ -4,7 +4,8 @@ import subprocess
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils import APPS_EXE_SHA256, DESKTOP_ANNOTATION_BACKUP, sha256_file
+from utils.config import APPS_EXE_SHA256, DESKTOP_ANNOTATION_BACKUP
+from utils.hashing import sha256_file
 
 
 def _show_toast(text_fields):

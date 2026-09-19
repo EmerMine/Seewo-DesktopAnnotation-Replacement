@@ -11,34 +11,29 @@ from PySide6.QtWidgets import (
     QPushButton, QCheckBox, QMessageBox, QComboBox, QRadioButton,
     QGroupBox, QFrame, QStyle, QDialog,
 )
-from utils import (
+from utils.config import (
     VERSION,
     DEFAULT_SETTINGS,
-    get_icon_path,
-    get_shield_icon_path,
-    load_settings,
-    save_settings,
-    apply_style,
-    apply_theme,
-    install,
-    uninstall,
-    repair,
-    get_install_status,
-    get_install_diagnostics,
     INSTALL_STATUS_INSTALLED,
     INSTALL_STATUS_CORRUPTED,
-    shortcut_exists,
-    create_shortcut,
-    delete_shortcut,
-    # _is_win11,
-    check_icc_ce_url_protocol,
-    _is_debug,
     ICC_STATUS_OK,
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
-    check_ifeo_hijack,
-    remove_ifeo_hijacks_async,
 )
+from utils.paths import get_icon_path, get_shield_icon_path
+from utils.qtstyle import apply_style, apply_theme
+from utils.settings import load_settings, save_settings
+from utils.shortcuts import shortcut_exists, create_shortcut, delete_shortcut
+from utils.desktop_annotation import (
+    install,
+    uninstall,
+    get_install_status,
+    get_install_diagnostics,
+)
+from utils.repair import repair
+from utils.debuglog import _is_debug
+from utils.icc import check_icc_ce_url_protocol
+from utils.ifeo import check_ifeo_hijack, remove_ifeo_hijacks_async
 from .icc_ce import ICCCESettingsWindow, ICCURLTroubleshootWindow
 from .ica_series import ICASettingsWindow
 from .none import NoneSettingsWindow

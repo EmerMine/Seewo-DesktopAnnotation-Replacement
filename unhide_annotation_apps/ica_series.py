@@ -24,7 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 
-from utils import load_settings, _log
+from utils.debuglog import _log
+from utils.settings import load_settings
 from unhide_annotation_apps.custom import (
     launch_executable,
     app_name_from_path,

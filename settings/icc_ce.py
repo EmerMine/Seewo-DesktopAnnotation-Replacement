@@ -10,20 +10,16 @@ from PySide6.QtWidgets import (
     QPushButton, QCheckBox, QSpinBox, QGroupBox,
     QSpacerItem, QSizePolicy, QStyle, QFrame, QTextBrowser,
 )
-from utils import (
-    get_icon_path,
-    get_data_dir,
-    load_settings,
-    save_settings,
-    run_protocol,
-    _is_win11,
+from utils.config import (
     ICC_STATUS_OK,
     ICC_STATUS_NO_PROTOCOL,
     ICC_STATUS_BROKEN,
-    check_icc_ce_url_protocol,
-    _icc_auto_pen_available,
     ICC_MIN_AUTO_PEN_VERSION,
 )
+from utils.paths import get_icon_path, get_data_dir, _is_win11
+from utils.settings import load_settings, save_settings
+from utils.process import run_protocol
+from utils.icc import check_icc_ce_url_protocol, _icc_auto_pen_available
 
 
 _HELP_DIR = os.path.join(
