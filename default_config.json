@@ -46,11 +46,11 @@
         "dir": "C:\\Program Files (x86)\\Seewo\\MiniApps\\DesktopAnnotation",
         "exe_name": "DesktopAnnotation.exe",
         "backup_name": "DesktopAnnotationBackup.exe",
-        "bat_name": "Seewo-DeskopAnnotation-Replacement.bat"
+        "bat_name": "Seewo-DesktopAnnotation-Replacement.bat"
     },
     "apps": {
         "exe_name": "DesktopAnnotation.exe",
-        "exe_sha256": "04913f22b039703e1c44f143893ac3f5bb5171ec176194df225be330200b042a"
+        "exe_sha256": "88f469dc0e4783b9953d2b8c62bd73064fc4d6b2969aeda6d2111cdaa7ac35a3"
     },
     "repair": {
         "url": {
