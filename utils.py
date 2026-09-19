@@ -1191,12 +1191,18 @@ def get_install_diagnostics():
     # 4. 原始备份文件组（所有 DesktopAnnotationBackup* 文件）
     backup_files = _scan_backup_da_files(DESKTOP_ANNOTATION_DIR)
     backup_exe = _find_primary_exe(backup_files)
+    # 专项校验：DesktopAnnotationBackup.exe 与替换程序（apps）哈希一致 → 备份损坏
+    backup_corrupted = (
+        os.path.exists(DESKTOP_ANNOTATION_BACKUP)
+        and sha256_file(DESKTOP_ANNOTATION_BACKUP) == APPS_EXE_SHA256
+    )
     checks.append({
         "label": "原始程序备份",
-        "ok": bool(backup_files),
+        "ok": bool(backup_files) and not backup_corrupted,
         "detail": (
-            f"共 {len(backup_files)} 个文件：\n"
-            + "\n".join(f"  {os.path.basename(p)}" for p in backup_files)
+            f"共 {len(backup_files)} 个文件：<br>"
+            + "<br>".join(f"  {os.path.basename(p)}" for p in backup_files)
+            + ("<br>备份文件与替换程序哈希一致，备份已损坏" if backup_corrupted else "")
             if backup_files else "未发现备份文件"
         ),
     })
@@ -1207,8 +1213,8 @@ def get_install_diagnostics():
         "label": "原始未备份文件",
         "ok": True,
         "detail": (
-            f"共 {len(original_files)} 个文件：\n"
-            + "\n".join(f"  {os.path.basename(p)}" for p in original_files)
+            f"共 {len(original_files)} 个文件：<br>"
+            + "<br>".join(f"  {os.path.basename(p)}" for p in original_files)
             if original_files else "无（安装后原始文件已被重命名为 DesktopAnnotationBackup*）"
         ),
     })
@@ -1228,7 +1234,7 @@ def get_install_diagnostics():
         "label": "启动脚本入口有效",
         "ok": all_entry_exist,
         "detail": (
-            "\n".join(f"  {p}" for p in entry_paths) if entry_paths
+            "<br>".join(f"  {p}" for p in entry_paths) if entry_paths
             else ("启动脚本不存在" if not has_launcher else "无法解析入口命令")
         ),
     })
@@ -1567,7 +1573,8 @@ def get_install_status():
     判定规则：
       - NOT_INSTALLED：DESKTOP_ANNOTATION_EXE 存在但 hash 不是我们的，且无备份文件组、无启动脚本
       - INSTALLED：DESKTOP_ANNOTATION_EXE hash 符合 + 存在备份文件组 + 存在有效启动脚本
-      - CORRUPTED：其他所有情况
+      - CORRUPTED：其他所有情况（含专项校验：DesktopAnnotationBackup.exe 与替换程序
+        exe_sha256 一致时，说明备份已被替换程序覆盖，判定为损坏）
     """
     has_orig = os.path.exists(DESKTOP_ANNOTATION_EXE)
     has_backup = bool(_scan_backup_da_files(DESKTOP_ANNOTATION_DIR))
@@ -1579,6 +1586,12 @@ def get_install_status():
 
     if orig_hash != APPS_EXE_SHA256 and not has_launcher and not has_backup:
         return INSTALL_STATUS_NOT_INSTALLED
+
+    # 专项校验：DesktopAnnotationBackup.exe 的 SHA-256 与预设 exe_sha256 完全一致，
+    # 说明备份文件是替换程序的副本而非原始希沃程序，标记为损坏
+    if os.path.exists(DESKTOP_ANNOTATION_BACKUP) \
+            and sha256_file(DESKTOP_ANNOTATION_BACKUP) == APPS_EXE_SHA256:
+        return INSTALL_STATUS_CORRUPTED
 
     if orig_hash == APPS_EXE_SHA256 and has_backup and has_launcher:
         entry_paths = _parse_bat_entry(DESKTOP_ANNOTATION_BAT)
