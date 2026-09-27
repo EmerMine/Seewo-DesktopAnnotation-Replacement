@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QGroupBox, QFrame, QStyle, QDialog,
 )
 from utils.config import (
+    INSTALL_STATUS_NOT_INSTALLED,
     VERSION,
     DEFAULT_SETTINGS,
     INSTALL_STATUS_INSTALLED,
@@ -264,6 +265,10 @@ class SettingsWindow(QWidget):
         self._last_installed_state = None
         self._refresh_attempts = 0
         self._install_status = None
+        # 本次替换/还原/修复操作的目标终态；仅当状态达到该值时才停止轮询，
+        # 避免修复过程中 NOT_INSTALLED 等中间态被误判为操作完成
+        self._expected_status = None
+        self._max_refresh_attempts = 40
 
         self._sync_theme_enabled()
         self._init_ui = False
@@ -446,6 +451,8 @@ class SettingsWindow(QWidget):
     def on_refresh_clicked(self):
         self.refresh_timer.stop()
         self._delay_install_check_timer.stop()
+        self._expected_status = None
+        self._max_refresh_attempts = 40
         self.update_install_buttons()
 
     def on_action_clicked(self):
@@ -455,6 +462,13 @@ class SettingsWindow(QWidget):
         self._refresh_attempts = 0
         is_uninstalling = self._install_status == INSTALL_STATUS_INSTALLED
         is_repair = self._install_status == INSTALL_STATUS_CORRUPTED
+        # 设置本次操作的目标终态：替换/修复 → INSTALLED，还原 → NOT_INSTALLED
+        self._expected_status = (
+            INSTALL_STATUS_NOT_INSTALLED if is_uninstalling
+            else INSTALL_STATUS_INSTALLED
+        )
+        # 修复需要运行原始安装包，耗时较长，放宽轮询上限（120 秒）
+        self._max_refresh_attempts = 120 if is_repair else 40
         self.btn_action.setEnabled(False)
         if is_uninstalling:
             self.btn_action.setText("还原中……")
@@ -497,7 +511,24 @@ class SettingsWindow(QWidget):
     def check_install_status(self):
         current = self._get_install_status()
         self._refresh_attempts += 1
-        if current != self._last_installed_state:
+        # 若已设置目标终态（正在执行替换/还原/修复），仅当状态达到目标终态时才停止轮询；
+        # 中间态（如修复过程中短暂出现的 NOT_INSTALLED）不再触发停止，避免误判为"未替换"
+        if self._expected_status is not None:
+            if current == self._expected_status:
+                self._last_installed_state = current
+                self._expected_status = None
+                self.refresh_timer.stop()
+                self.settings["general"]["ink_product"] = "keep"
+                save_settings(self.settings)
+                self.radio_keep.setChecked(True)
+                self.update_install_buttons()
+            elif self._refresh_attempts >= self._max_refresh_attempts:
+                # 超时仍未达到目标终态：按当前实际状态更新按钮（可能是修复失败等场景）
+                self._last_installed_state = current
+                self._expected_status = None
+                self.refresh_timer.stop()
+                self.update_install_buttons()
+        elif current != self._last_installed_state:
             was_not_installed = self._last_installed_state != INSTALL_STATUS_INSTALLED
             was_installed = not was_not_installed
             self._last_installed_state = current
@@ -506,7 +537,7 @@ class SettingsWindow(QWidget):
             save_settings(self.settings)
             self.radio_keep.setChecked(True)
             self.update_install_buttons()
-        elif self._refresh_attempts >= 40:
+        elif self._refresh_attempts >= self._max_refresh_attempts:
             self.refresh_timer.stop()
             self.update_install_buttons()
 
