@@ -3,11 +3,11 @@ import os
 import argparse
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QApplication, QPushButton, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 from settings import SettingsWindow
 from settings.update import check_for_update, check_for_update_async # type: ignore
 from unhide_annotation_apps import icc_ce, none, original, custom, ica_series
-from utils.config import INSTALL_STATUS_INSTALLED, INSTALL_STATUS_NOT_INSTALLED
+from utils.config import INSTALL_STATUS_NOT_INSTALLED
 from utils.debuglog import _is_debug, _debug_log, set_debug_mode
 from utils.paths import get_icon_path
 from utils.qtstyle import apply_style, apply_theme

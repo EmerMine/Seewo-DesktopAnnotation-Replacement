@@ -6,8 +6,8 @@ import webbrowser
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QCheckBox, QTextBrowser, QDialog,
+    QVBoxLayout, QHBoxLayout, QPushButton,
+    QTextBrowser, QDialog,
 )
 from utils.config import VERSION
 from utils.paths import get_icon_path
