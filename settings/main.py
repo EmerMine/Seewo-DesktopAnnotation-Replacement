@@ -204,6 +204,8 @@ class SettingsWindow(QWidget):
 
         self.lbl_icc_ce_hint = QLabel()
         self.lbl_icc_ce_hint.setWordWrap(True)
+        # 初始为空文本，先隐藏，避免空标签占位产生 UI 空白区域
+        self.lbl_icc_ce_hint.hide()
 
         self.lbl_replace_hint = QLabel("您需要先单击上方「替换」按钮，才能将希沃桌面批注替换为下方任意选项。")
         self.lbl_replace_hint.setWordWrap(True)
@@ -437,6 +439,18 @@ class SettingsWindow(QWidget):
             )
             self.lbl_icc_ce_hint.setStyleSheet(hint_style)
             self.lbl_icc_ce_issue.show()
+        self._update_icc_ce_hint_visibility()
+
+    def _update_icc_ce_hint_visibility(self):
+        """根据 lbl_icc_ce_hint 的文本内容切换可见性。
+
+        空字符串 / None / 仅空白字符均视为无内容 → 隐藏控件（消除空白占位）；
+        有效非空文本 → 显示控件。
+        """
+        text = self.lbl_icc_ce_hint.text()
+        # text() 正常返回 str；防御 None 等异常值，统一按空处理
+        has_content = bool(text) and bool(text.strip()) if isinstance(text, str) else False
+        self.lbl_icc_ce_hint.setVisible(has_content)
 
     def _sync_hint_label_style(self):
         if not self.lbl_icc_ce_hint.text():
